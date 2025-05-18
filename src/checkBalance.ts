@@ -1,33 +1,68 @@
-import { Connection, clusterApiUrl, Keypair } from '@solana/web3.js';
-import * as fs from 'fs';
-import dotenv from 'dotenv';
+import 'dotenv/config';
+import { Connection, clusterApiUrl, Keypair, Transaction, PublicKey } from '@solana/web3.js';
+import { DriftClient, getMarketsAndOraclesForSubscription, IWallet, DriftClientConfig, DriftEnv } from '@drift-labs/sdk';
 
-dotenv.config();
+class KeypairWallet implements IWallet {
+  constructor(private keypair: Keypair) {}
 
-// Use environment variables or defaults
-const KEYPAIR_PATH = process.env.WALLET_KEYPAIR_PATH || '/Users/martycook/.config/solana/id.json';
-const CLUSTER_URL = process.env.SOLANA_CLUSTER_URL || clusterApiUrl('devnet');
+  get publicKey(): PublicKey {
+    return this.keypair.publicKey;
+  }
 
-// Load your keypair
-const secretKeyString = fs.readFileSync(KEYPAIR_PATH, 'utf8');
-const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
-const keypair = Keypair.fromSecretKey(secretKey);
+  async signTransaction(tx: Transaction): Promise<Transaction> {
+    tx.partialSign(this.keypair);
+    return tx;
+  }
 
-// Connect to devnet
-const connection = new Connection(CLUSTER_URL, 'confirmed');
-
-async function checkBalance() {
-  try {
-    const balance = await connection.getBalance(keypair.publicKey);
-    console.log('Balance (lamports):', balance);
-    console.log('Balance (SOL):', balance / 1e9);
-  } catch (err) {
-    console.error('Error fetching balance:', err);
+  async signAllTransactions(txs: Transaction[]): Promise<Transaction[]> {
+    for (const tx of txs) {
+      tx.partialSign(this.keypair);
+    }
+    return txs;
   }
 }
 
-async function main() {
-  await checkBalance();
+function getWalletFromEnv(): KeypairWallet {
+  const secretKeyString = process.env.WALLET_SECRET_KEY;
+  if (!secretKeyString) throw new Error('Missing WALLET_SECRET_KEY in env');
+
+  const secretKeyArray = JSON.parse(secretKeyString) as number[];
+  const secretKeyUint8 = Uint8Array.from(secretKeyArray);
+
+  const keypair = Keypair.fromSecretKey(secretKeyUint8);
+  return new KeypairWallet(keypair);
 }
 
-main();
+async function checkBalance() {
+  const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+  const wallet = getWalletFromEnv();
+
+  console.log('Wallet Public Key:', wallet.publicKey.toBase58());
+
+  const { perpMarketIndexes, spotMarketIndexes, oracleInfos } = getMarketsAndOraclesForSubscription(DriftEnv.DEVNET);
+
+  const driftClientConfig: DriftClientConfig = {
+    connection,
+    wallet,
+    env: 'devnet',
+    perpMarketIndexes,
+    spotMarketIndexes,
+    oracleInfos,
+  };
+
+  const driftClient = new DriftClient(driftClientConfig);
+  await driftClient.subscribe();
+
+  const balance = await connection.getBalance(wallet.publicKey);
+  console.log(`Wallet balance: ${balance / 1e9} SOL`);
+
+  await driftClient.unsubscribe();
+}
+
+(async () => {
+  try {
+    await checkBalance();
+  } catch (e) {
+    console.error('Error:', e);
+  }
+})();
