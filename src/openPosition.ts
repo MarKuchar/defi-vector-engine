@@ -1,99 +1,85 @@
-import { Connection, PublicKey } from '@solana/web3.js';
-import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
+import 'dotenv/config';
+import { Connection, clusterApiUrl, Keypair, PublicKey } from '@solana/web3.js';
 import {
   DriftClient,
-  initialize,
-  PositionDirection,
+  getMarketsAndOraclesForSubscription,
+  DriftClientConfig,
   OrderType,
-  BN,
-  BulkAccountLoader,
+  PositionDirection,
 } from '@drift-labs/sdk';
-import dotenv from 'dotenv';
+import BN from 'bn.js';
+import { getWalletFromEnv } from './wallet';
 
-dotenv.config();
+async function safeOpenPosition(driftClient: DriftClient, marketIndex: number, amountRaw: number) {
+  // Check if user account exists for this wallet
+  const userAccount = await driftClient.getUserAccount();
+  if (!userAccount) {
+    console.log('User does not exist. Initializing user account...');
+    await driftClient.initializeUserAccount();
+    console.log('User initialized');
+  } else {
+    console.log('User already exists');
+  }
+
+  console.log(`Opening long position on market ${marketIndex} with amount ${amountRaw}...`);
+
+  // Convert amount to BN (assuming amountRaw is in base units, adjust if needed)
+  const amount = new BN(amountRaw);
+  const orderParams = {
+  orderType: OrderType.MARKET,        // or OrderType.LIMIT
+  marketIndex: marketIndex,
+  baseAssetAmount: amount,
+  direction: PositionDirection.LONG,
+  // Optional:
+  // price: someBN,   // required for LIMIT orders
+  // reduceOnly: false,
+  // postOnly: false,
+  // immediateOrCancel: false,
+};
+
+
+  const txSig = await driftClient.placePerpOrder(orderParams);
+
+  console.log('Position opened, tx signature:', txSig);
+}
 
 async function main() {
-  // Connect to Solana devnet
-  const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
+  const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+  const wallet = getWalletFromEnv();
 
-  // Create AnchorProvider from existing connection
-  const provider = AnchorProvider.local('https://api.devnet.solana.com');
-  const wallet = provider.wallet as Wallet;
+  console.log('Wallet Public Key:', wallet.publicKey.toBase58());
 
-  // Initialize Drift SDK environment
-  initialize({
-    env: 'devnet',
-    overrideEnv: {},
-  });
+  const { perpMarketIndexes, spotMarketIndexes, oracleInfos } = getMarketsAndOraclesForSubscription('devnet');
 
-  // Setup account loader for polling mode (required)
-  const accountLoader = new BulkAccountLoader(connection, 'confirmed', 500);
-
-  // Instantiate DriftClient
-  const driftClient = new DriftClient({
+  const driftClientConfig: DriftClientConfig = {
     connection,
     wallet,
     env: 'devnet',
-    accountSubscription: {
-      type: 'polling',
-      accountLoader,
-    },
-  });
+    perpMarketIndexes,
+    spotMarketIndexes,
+    oracleInfos,
+  };
 
-  // Subscribe to accounts
+  const driftClient = new DriftClient(driftClientConfig);
+
   await driftClient.subscribe();
 
-  // Initialize user account if needed
-  const userAccount = driftClient.getUserAccount();
-
-  if (!userAccount) {
-    await driftClient.initializeUserAccount();
-  } else {
-    console.log('User account already initialized.');
-  }
-
-  // Deposit collateral
-  const depositAmount = new BN(1_000_000); // 1 USDC with 6 decimals
-  const marketIndex = 0;                    // usually 0 is USDC spot market index
-
-  // For native SOL, associatedTokenAccount = wallet public key
-  // For SPL tokens like USDC, you'd find the associated token account address for the wallet
-  // Here we assume native SOL or you have the correct token account PublicKey
-  const associatedTokenAccount = wallet.publicKey; 
-
   try {
-    const txSig1 = await driftClient.deposit(
-      depositAmount,
-      marketIndex,
-      associatedTokenAccount
-      // subAccountId, reduceOnly, txParams are optional
-    );
-    console.log("Deposit tx:", txSig1);
+    const marketIndex = 0; // example market index
+    const amountRaw = 10000000; // example amount in base units (adjust as needed)
+
+    await safeOpenPosition(driftClient, marketIndex, amountRaw);
   } catch (e) {
-    console.error('Deposit failed:', e);
-    return;
+    console.error('Error opening position:', e);
   }
 
-  // Get perp market info
-  const perpMarketIndex = 0;
-  const market = driftClient.getPerpMarketAccount(perpMarketIndex);
-  if (!market) throw new Error(`Market not found for index ${perpMarketIndex}`);
-
-  // Use the market's minimum order step size (BN)
-  const orderStepSize = market.amm.orderStepSize;
-
-  // Place a limit long order
-  const txSig2 = await driftClient.placePerpOrder({
-    marketIndex: perpMarketIndex,
-    direction: PositionDirection.LONG,
-    baseAssetAmount: orderStepSize,
-    price: new BN(100_000_000), // $100 price scaled
-    orderType: OrderType.LIMIT,
-  });
-
-  console.log(`✅ Order placed: ${txSig2}`);
+  await driftClient.unsubscribe();
 }
 
-main().catch((e) => {
-  console.error('❌ Error running script:', e);
-});
+(async () => {
+  try {
+    await main();
+  } catch (e) {
+    console.error('Fatal error:', e);
+  }
+})();

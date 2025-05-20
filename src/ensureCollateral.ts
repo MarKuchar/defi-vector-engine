@@ -1,27 +1,40 @@
 import { BN } from "bn.js";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { PublicKey } from "@solana/web3.js";
 
-async function ensureCollateral(driftClient, depositAmount: number, subAccountId: number) {
-  // Fetch your account info (including collateral)
+const USDC_MINT = new PublicKey("Aj9Bie6REe74rSGwAqfAvx6tV1LZKUd1iKzD8U2FJh8z"); // USDC on devnet
+
+export async function ensureCollateral(driftClient: { fetchAccounts: () => any; getUser: () => any; wallet: { publicKey: PublicKey; }; deposit: (arg0: import("bn.js"), arg1: number, arg2: PublicKey, arg3: number) => any; }, depositAmount: number, subAccountId = 0) {
   await driftClient.fetchAccounts();
+  const user = driftClient.getUser();
+  const totalCollateral = user.getTotalCollateral();
 
-  const account = driftClient.getUserAccount();
-  const collateralBalance = account.getTotalCollateral();
+  console.log("Current collateral:", totalCollateral.toString());
 
-  console.log("Current collateral:", collateralBalance.toString());
+  if (totalCollateral.lt(new BN(depositAmount))) {
+    console.log(`Depositing ${depositAmount} collateral...`);
 
-  // If collateral is less than depositAmount, deposit collateral
-  if (collateralBalance.lt(new BN(depositAmount))) {
-    console.log(`Depositing collateral: ${depositAmount}`);
+    // Get your associated token account (ATA) for USDC
+    const usdcTokenAccount = await getAssociatedTokenAddress(
+      USDC_MINT,
+      driftClient.wallet.publicKey
+    );
+
     try {
-      await driftClient.depositCollateral(new BN(depositAmount), subAccountId);
-      console.log("Collateral deposited successfully.");
-      // Refresh account info after deposit
-      await driftClient.fetchAccounts();
+      await driftClient.deposit(
+        new BN(depositAmount),
+        0, // spotMarketIndex = 0 for USDC
+        usdcTokenAccount,
+        subAccountId
+      );
+
+      console.log("✅ Collateral deposited.");
+      await driftClient.fetchAccounts(); // Refresh
     } catch (err) {
-      console.error("Error depositing collateral:", err);
+      console.error("❌ Error depositing collateral:", err);
       throw err;
     }
   } else {
-    console.log("Sufficient collateral available, no deposit needed.");
+    console.log("✅ Sufficient collateral available. No deposit needed.");
   }
 }
