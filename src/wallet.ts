@@ -1,5 +1,6 @@
 import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import { IWallet } from '@drift-labs/sdk';
+import fs from 'fs';
 import 'dotenv/config';
 
 export class KeypairWallet implements IWallet {
@@ -31,12 +32,8 @@ export class KeypairWallet implements IWallet {
 }
 
 export function getWalletFromEnv(): KeypairWallet {
-  const secretKeyString = process.env.WALLET_SECRET_KEY;
-  if (!secretKeyString) throw new Error('Missing WALLET_SECRET_KEY in env');
-
-  const secretKeyArray = JSON.parse(secretKeyString) as number[];
-  const secretKeyUint8 = Uint8Array.from(secretKeyArray);
-
-  const keypair = Keypair.fromSecretKey(secretKeyUint8);
+  const secretKeyString = fs.readFileSync(process.env.WALLET_PATH!, 'utf-8');
+  const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
+  const keypair = Keypair.fromSecretKey(secretKey);
   return new KeypairWallet(keypair);
 }

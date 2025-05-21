@@ -1,84 +1,66 @@
 import {
-  DriftClient,
-  Wallet,
-} from '@drift-labs/sdk';
-import { BN } from '@coral-xyz/anchor';
-import {
   Connection,
   Keypair,
   PublicKey,
+  clusterApiUrl,
+  sendAndConfirmTransaction,
   Transaction,
-} from '@solana/web3.js';
+} from "@solana/web3.js";
 import {
-  getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
-} from '@solana/spl-token';
-import fs from 'fs';
-import dotenv from 'dotenv';
-import path from 'path';
+  getAssociatedTokenAddress,
+  getAccount,
+} from "@solana/spl-token";
+import * as fs from "fs";
+import {
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 
-dotenv.config();
 
-async function main() {
-  // Load wallet keypair from env path
-  const keypairPath = process.env.WALLET_KEYPAIR_PATH;
-  if (!keypairPath) throw new Error('WALLET_KEYPAIR_PATH not set in .env');
-  const secretKey = new Uint8Array(JSON.parse(fs.readFileSync(keypairPath, 'utf8')));
-  const keypair = Keypair.fromSecretKey(secretKey);
-
-  // Connection
-  const rpcUrl = process.env.RPC_ENDPOINT || process.env.SOLANA_CLUSTER_URL || 'https://api.devnet.solana.com';
-  const connection = new Connection(rpcUrl, 'confirmed');
-
-  // Wallet & DriftClient
-  const wallet = new Wallet(keypair);
-  const driftClient = new DriftClient({
-    connection,
-    wallet,
-    env: 'devnet',
-  });
-
-  await driftClient.subscribe();
-
-  // Mint and USDC ATA from env
-  if (!process.env.MINT_PUBLIC_KEY) throw new Error('MINT_PUBLIC_KEY not set in .env');
-  const usdcMint = new PublicKey(process.env.MINT_PUBLIC_KEY);
-
-  // Derive or verify associated token account
-  const associatedTokenAccount = await getAssociatedTokenAddress(usdcMint, wallet.publicKey);
-
-  // Check if ATA exists
-  const ataAccountInfo = await connection.getAccountInfo(associatedTokenAccount);
-  if (!ataAccountInfo) {
-    console.log('Creating associated token account for USDC...');
-    const tx = new Transaction().add(
-      createAssociatedTokenAccountInstruction(
-        wallet.publicKey,          // payer
-        associatedTokenAccount,    // ATA address
-        wallet.publicKey,          // owner
-        usdcMint                  // mint
-      )
-    );
-    const signature = await connection.sendTransaction(tx, [keypair]);
-    console.log('Created ATA, tx:', signature);
-    // Optionally wait for confirmation:
-    await connection.confirmTransaction(signature, 'confirmed');
-  } else {
-    console.log('Associated token account already exists:', associatedTokenAccount.toBase58());
-  }
-
-  // Amount to deposit: 100 USDC with 6 decimals (adjust if needed)
-  const FAUCET_AMOUNT = 100 * 1e6; // 100 USDC
-  const depositAmount = new BN(FAUCET_AMOUNT);
-
-  // Now call deposit on Drift
-  const txSig = await driftClient.deposit(depositAmount, 0 /* marketIndex - you need to check your USDC market index */, associatedTokenAccount);
-  console.log(`✅ Deposit successful! Tx: ${txSig}`);
-
-  await driftClient.unsubscribe();
+// Load keypair from config path
+function loadKeypair(): Keypair {
+  const homedir = require("os").homedir();
+  const path = `${homedir}/.config/solana/id.json`;
+  const secret = JSON.parse(fs.readFileSync(path, "utf8"));
+  return Keypair.fromSecretKey(new Uint8Array(secret));
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
+async function main() {
+  const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
+  const payer = loadKeypair();
+
+  const balance = await connection.getBalance(payer.publicKey);
+  console.log(`💰 Payer SOL balance: ${balance / 1e9} SOL`);
+
+  if (balance < 0.001 * 1e9) {
+    throw new Error("❌ Insufficient funds in payer account to create ATA");
+  }
+
+  // Example: Devnet USDC mint (Devnet only)
+  const usdcMint = new PublicKey("BQYBLrJtEwhKLGkigJDm5c9j9VaKK9XWvKbUj9uUbYEP"); // Use actual devnet USDC mint
+  const ata = await getAssociatedTokenAddress(usdcMint, payer.publicKey);
+
+  try {
+    await getAccount(connection, ata);
+    console.log("✅ ATA already exists:", ata.toBase58());
+  } catch (e) {
+    const tx = new Transaction().add(
+      createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        ata,
+        payer.publicKey,
+        usdcMint
+      )
+    );
+
+    const sig = await sendAndConfirmTransaction(connection, tx, [payer]);
+    console.log("✅ ATA created:", ata.toBase58());
+    console.log("📦 Transaction:", sig);
+  }
+
+}
+
+main().catch((err) => {
+  console.error("❌ Error occurred:", err);
 });
