@@ -31,7 +31,6 @@ const wallet = new KeypairWallet(keypair);
 (async () => {
   try {
     // Initialize drift-labs SDK environment — match the env to your cluster (devnet/mainnet)
-    const env = clusterUrl.includes('devnet') ? 'devnet' : 'mainnet';
 
     await initialize({ env: 'devnet' });
 

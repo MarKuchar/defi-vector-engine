@@ -28,20 +28,31 @@ async function main() {
     console.log('User not found. Make sure your user is initialized.');
     return;
   }
-
+  await user.fetchAccounts(); 
   const positions = user.getUserAccount().perpPositions;
 
   console.log('\n📊 Current Perp Positions:\n');
 
-  positions.forEach((position, index) => {
-    if (position.baseAssetAmount.toString() !== '0') {
+  positions.forEach((position) => {
+  console.log(`- Market Index: ${position.marketIndex}`);
+  console.log(`  Base Asset Amount: ${position.baseAssetAmount.toString()}`);
+  console.log(`  Quote Asset Amount: ${position.quoteAssetAmount.toString()}`);
+  console.log(`  Entry Price (approx): ${position.quoteEntryAmount.toString()}`);
+  console.log('---');
+});
+  const nonZeroPositions = positions.filter(p => !p.baseAssetAmount.isZero());
+
+  if (nonZeroPositions.length === 0) {
+    console.log('No open perp positions.');
+  } else {
+    nonZeroPositions.forEach((position) => {
       console.log(`- Market Index: ${position.marketIndex}`);
       console.log(`  Base Asset Amount: ${position.baseAssetAmount.toString()}`);
       console.log(`  Quote Asset Amount: ${position.quoteAssetAmount.toString()}`);
-      console.log(`  Entry Price: ${position.lastCumulativeFundingRate.toString()}`);
+      console.log(`  Entry Price (approx): ${position.quoteEntryAmount.toString()}`);
       console.log('---');
-    }
-  });
+    });
+  }
 
   await driftClient.unsubscribe();
 }

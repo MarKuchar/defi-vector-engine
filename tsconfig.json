@@ -6,7 +6,10 @@
     "strict": true,
     "esModuleInterop": true,
     "outDir": "dist",
-   "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*",
+    "src/env.d.ts"
+  ]
 }

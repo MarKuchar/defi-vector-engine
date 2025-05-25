@@ -1,81 +1,66 @@
-import { Connection, PublicKey, Keypair } from "@solana/web3.js";
-import { DriftClient, getMarketsAndOraclesForSubscription, DriftClientConfig, Wallet } from "@drift-labs/sdk";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
-import BN from "bn.js";
 import dotenv from "dotenv";
-import { getAccount } from "@solana/spl-token";
-
+import { Connection, PublicKey } from '@solana/web3.js';
+import {
+  DriftClient,
+  getMarketsAndOraclesForSubscription,
+} from '@drift-labs/sdk';
+import BN from 'bn.js';
+import { getWalletFromEnv } from '../wallet/wallet';
 dotenv.config();
 
-const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://api.devnet.solana.com";
-const usdcMint = new PublicKey(process.env.MINT!);
-const PRIVATE_KEY = JSON.parse(process.env.PRIVATE_KEY!); // JSON array string from .env
+async function depositCollateral() {
+  const connection = new Connection(process.env.SOLANA_CLUSTER_URL!, 'confirmed');
+  const wallet = getWalletFromEnv();
+  const usdcAta = new PublicKey(process.env.TOKEN_ACCOUNT_PUBLIC_KEY!);
 
-const connection = new Connection(RPC_ENDPOINT, "confirmed");
+  const { perpMarketIndexes, spotMarketIndexes, oracleInfos } =
+    getMarketsAndOraclesForSubscription('devnet');
 
-async function main() {
-  // Get markets and oracles info for devnet
-  const { perpMarketIndexes, spotMarketIndexes, oracleInfos } = getMarketsAndOraclesForSubscription("devnet");
-
-  // Create wallet from secret key
-  const rawKeypair = Keypair.fromSecretKey(Uint8Array.from(PRIVATE_KEY));
-  const wallet = new Wallet(rawKeypair);
-
-  const driftClientConfig: DriftClientConfig = {
+  const driftClient = new DriftClient({
     connection,
     wallet,
-    env: "devnet",
+    env: 'devnet',
     perpMarketIndexes,
     spotMarketIndexes,
     oracleInfos,
-  };
-
-  const driftClient = new DriftClient(driftClientConfig);
-  await driftClient.subscribe();
-
-  // Find the spot market index for USDC
-  const spotMarketIndex = spotMarketIndexes.find((index) => {
-    const market = driftClient.getSpotMarketAccount(index);
-    return market?.mint.equals(usdcMint);
   });
 
-  if (spotMarketIndex === undefined) {
-    throw new Error("USDC spot market not found.");
-  }
+  await driftClient.subscribe();
 
-  // Ensure user account is initialized
-  let userAccount;
-  try {
-    userAccount = driftClient.getUserAccount();
-  } catch {
-    console.log("Initializing user account...");
+  let user = driftClient.getUser();
+  if (!user) {
+    console.log('No user found. Initializing user account...');
     await driftClient.initializeUserAccount();
-    userAccount = driftClient.getUserAccount();
+
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      user = driftClient.getUser();
+      if (user) break;
+      console.log(`Waiting for user to initialize... (${i + 1}/10)`);
+    }
+    if (!user) throw new Error('User initialization timed out.');
   }
 
-  // Get user's associated token account for USDC
-    const userTokenAccount = await getAssociatedTokenAddress(usdcMint, wallet.publicKey);
-  await checkUsdcBalance(userTokenAccount);
-  // Amount to deposit: 1 USDC (USDC has 6 decimals)
-  const amountToDeposit = new BN(1_000_000);
+  let usdcSpotMarketIndex: number | undefined;
+  for (const index of spotMarketIndexes) {
+    const spotMarket = driftClient.getSpotMarketAccount(index);
+    if (spotMarket && spotMarket.mint.toBase58() === process.env.MINT!) {
+      usdcSpotMarketIndex = index;
+      break;
+    }
+  }
+  if (usdcSpotMarketIndex === undefined) {
+    throw new Error('USDC spot market index not found');
+  }
 
-  // Deposit USDC as collateral
-  await driftClient.deposit(amountToDeposit, spotMarketIndex, userTokenAccount);
-
-  console.log("Deposit successful.");
+  const depositAmount = new BN(10 * 1_000_000); // 10 USDC
+  console.log(`Depositing 10 USDC to index ${usdcSpotMarketIndex}...`);
+  const depositTxSig = await driftClient.deposit(depositAmount, usdcSpotMarketIndex, usdcAta);
+  console.log('Deposit tx signature:', depositTxSig);
 
   await driftClient.unsubscribe();
 }
 
-async function checkUsdcBalance(pubkey: PublicKey) {
-  try {
-    const accountInfo = await getAccount(connection, pubkey);
-    console.log("USDC token balance:", Number(accountInfo.amount) / 1_000_000); // assuming 6 decimals
-  } catch (e) {
-    console.error("Failed to fetch USDC token account:", e);
-  }
-}
-
-main().catch((err) => {
-  console.error("Error during deposit operation:", err);
+depositCollateral().catch((err) => {
+  console.error('Error during deposit:', err);
 });
