@@ -1,29 +1,35 @@
 import {
   Connection,
   PublicKey,
-  clusterApiUrl,
 } from "@solana/web3.js";
 import {
   getAccount,
   getAssociatedTokenAddress,
   AccountLayout,
 } from "@solana/spl-token";
-import { getWalletFromEnv, signSendConfirm } from './wallet';
+import { getWalletFromEnv } from "../wallet/wallet";
+import dotenv from 'dotenv';
+import { getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+import { Keypair } from '@solana/web3.js';
+import * as fs from "fs";
 
-const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
 
-// 🧠 Replace these values
-const TOKEN_ACCOUNT = new PublicKey("EQT1sYqJ4ou2jPA2PzqHBjq4XA1a2iurspWHLMdD3N3A");
+dotenv.config();
+
+const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://api.devnet.solana.com";
+const MINT = new PublicKey(process.env.MINT!);
+const PROGRAM_ID = process.env.PROGRAM_ID ? new PublicKey(process.env.PROGRAM_ID) : undefined; // optional
+const PDA_SEEDS = process.env.PDA_SEEDS ? process.env.PDA_SEEDS.split(",") : [];
+
+const connection = new Connection(RPC_ENDPOINT, "confirmed");
 const WALLET = getWalletFromEnv();
-const MINT = new PublicKey("866cPveLGCHpRy96BFXNBUWsfcgVEn3oopVLwqwLQin7");
-const PROGRAM_ID = new PublicKey("FKS9qxTxXHu7K1cBdx8QzCLhSPG64jsCTvQ8fBznCD6z"); // Optional, for PDA check
-const PDA_SEEDS = ["example", "seed"]; // Optional, for PDA check
 
 async function validateTokenAccount(tokenAccountPubkey: PublicKey, expectedMint: PublicKey, expectedOwner: PublicKey) {
   const accountInfo = await connection.getAccountInfo(tokenAccountPubkey);
   if (!accountInfo) throw new Error("Token account not found");
 
   const data = AccountLayout.decode(accountInfo.data);
+  console.log("Token Balance:", Number(data.amount));
   const mint = new PublicKey(data.mint);
   const owner = new PublicKey(data.owner);
   const state = data.state;
@@ -60,7 +66,7 @@ async function printTokenBalance(tokenAccountPubkey: PublicKey) {
   try {
     const account = await getAccount(connection, tokenAccountPubkey);
     console.log("Token Balance:", account.amount.toString());
-    console.log("Address:     ", account.address);
+    console.log("Address:     ", account.address.toBase58());
   } catch (err) {
     console.error("❌ Failed to get token account info:", err);
   }
@@ -68,14 +74,28 @@ async function printTokenBalance(tokenAccountPubkey: PublicKey) {
 
 async function checkPDA(seeds: string[], programId: PublicKey) {
   const seedBuffers = seeds.map((s) => Buffer.from(s));
-  const [pda, bump] = await PublicKey.findProgramAddressSync(seedBuffers, programId);
+  const [pda, bump] = PublicKey.findProgramAddressSync(seedBuffers, programId);
   console.log("Derived PDA:", pda.toBase58(), " (bump =", bump, ")");
   return pda;
 }
 
 async function main() {
   console.log("🔍 Starting token account debug...");
+  const keypair = Keypair.fromSecretKey(
+    Uint8Array.from(JSON.parse(fs.readFileSync(process.env.WALLET_PATH!, "utf-8")))
+  );
 
+  const ata = await getOrCreateAssociatedTokenAccount(
+    connection,
+    keypair,
+    MINT,
+    WALLET.publicKey,
+    false,          // allowOwnerOffCurve
+    "confirmed",    // commitment
+    { skipPreflight: false, commitment: "confirmed" } // confirmOptions
+  );
+  const TOKEN_ACCOUNT = ata.address;
+  console.log("✅ ATA ready:", ata.address.toBase58());
   await validateTokenAccount(TOKEN_ACCOUNT, MINT, WALLET.publicKey);
   await checkAssociatedTokenAccount(WALLET.publicKey, MINT, TOKEN_ACCOUNT);
   await printTokenBalance(TOKEN_ACCOUNT);

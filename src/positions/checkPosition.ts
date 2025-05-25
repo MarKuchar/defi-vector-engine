@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { Connection } from '@solana/web3.js';
 import { DriftClient, getMarketsAndOraclesForSubscription } from '@drift-labs/sdk';
-import { getWalletFromEnv } from './wallet';
+import { getWalletFromEnv } from '../wallet/wallet';
 
 async function main() {
   const connection = new Connection(process.env.SOLANA_CLUSTER_URL!, 'confirmed');

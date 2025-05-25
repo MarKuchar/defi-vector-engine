@@ -1,7 +1,9 @@
 import { Connection, Transaction, Keypair, PublicKey } from "@solana/web3.js";
 import { IWallet } from '@drift-labs/sdk';
 import fs from 'fs';
-import 'dotenv/config';
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export class KeypairWallet implements IWallet {
   constructor(private keypair: Keypair) {}

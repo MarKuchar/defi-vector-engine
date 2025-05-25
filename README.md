@@ -1,3 +1,53 @@
+# Drift Trading Bot
+
+## Overview
+
+This bot interacts with the Solana Drift protocol to manage USDC collateral, open and monitor positions, and handle user accounts.
+
+---
+
+## Folder Structure
+
+- `accounts/`: Manage token accounts and balances.
+- `collateral/`: Handle collateral deposit and management.
+- `positions/`: Open and query trading positions.
+- `user/`: Initialize user-specific on-chain state.
+- `wallet/`: Wallet and keypair utilities.
+- `utils/`: Helper functions.
+- `index.ts`: Main orchestrator script (if applicable).
+
+---
+
+## Setup & Usage
+
+1. Configure your wallet in `wallet.ts`.
+2. Check and create necessary token accounts:
+   - `checkTokenAccount.ts`
+   - `create-usdc-ata.ts`
+   - `check-usdc-balance.ts`
+3. Initialize your user with `initializeUser.ts`.
+4. Deposit collateral using `depositCollateral.ts` and ensure it using `ensureCollateral.ts`.
+5. Open positions using `openPosition.ts`.
+6. Query and monitor positions with `checkPosition.ts` and `getPositions.ts`.
+7. Use utility functions from `utils.ts` where needed.
+
+---
+
+## Next Steps
+
+- Implement automated logic for opening and closing positions based on strategy signals.
+- Integrate event listeners or polling to react to position changes.
+- Add error handling and retries for network or on-chain failures.
+- Consider building a UI or CLI wrapper to control the bot interactively.
+
+---
+
+## Notes
+
+- Make sure your Solana CLI is configured to the desired network (devnet/mainnet).
+- Keep your keypair secure and never expose it publicly.
+
+
 # Solana SPL Token CLI Commands Reference
 
 Replace the placeholders (`<OWNER_PUBLIC_KEY>`, `<MINT_ADDRESS>`, `<RECIPIENT_ADDRESS>`, `<RPC_ENDPOINT>`) with your actual values.
