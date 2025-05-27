@@ -34,5 +34,5 @@ else
     echo "⚠️ Ownership mismatch! Check your token account owner."
 fi
 
-echo -e "\n=== Checking if program ID $PROGRAM_ID is deployed on DevNet ==="
+echo -e "\n=== Checking if program ID $PROGRAM_ID is deployed on devnet ==="
 solana program show "$PROGRAM_ID" --url "$RPC_URL" || echo "Program not found or not deployed."

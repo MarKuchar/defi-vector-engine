@@ -50,11 +50,11 @@ async function depositCollateral() {
     }
   }
   if (usdcSpotMarketIndex === undefined) {
-    throw new Error('USDC spot market index not found');
+    throw new Error('Spot market index not found');
   }
 
-  const depositAmount = new BN(10 * 1_000_000); // 10 USDC
-  console.log(`Depositing 10 USDC to index ${usdcSpotMarketIndex}...`);
+  const depositAmount = new BN(10 * 1_000_000); 
+  console.log(`Depositing 10 to index ${usdcSpotMarketIndex}...`);
   const depositTxSig = await driftClient.deposit(depositAmount, usdcSpotMarketIndex, usdcAta);
   console.log('Deposit tx signature:', depositTxSig);
 
