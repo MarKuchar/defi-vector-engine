@@ -8,72 +8,72 @@ import {
 } from '@drift-labs/sdk';
 import BN from 'bn.js';
 import { getWalletFromEnv } from '../wallet/wallet';
-import { checkOracleFreshness } from '../oracle/checkOracleFreshness'
+
 dotenv.config();
 
-const ALLOWED_ORACLE_DELAY_SECONDS = 30; // Example threshold
+// Config
+const ENV = 'devnet'; // Change to 'mainnet-beta' when ready
+const MARKET_INDEX = 0; // SOL
+const BASE_ASSET_AMOUNT = new BN(10_000_000); // 0.1 SOL
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
 
-async function openPosition() {
-  const connection = new Connection(process.env.SOLANA_CLUSTER_URL!, 'confirmed');
-  const wallet = getWalletFromEnv();
-
-  const { perpMarketIndexes, spotMarketIndexes, oracleInfos } = getMarketsAndOraclesForSubscription('devnet');
-
+async function executeTrade() {
+  const connection = new Connection(process.env.SOLANA_CLUSTER_URL!, {
+    commitment: 'confirmed'
+  });
   
+  const wallet = getWalletFromEnv();
+  const { perpMarketIndexes, spotMarketIndexes, oracleInfos } = 
+    getMarketsAndOraclesForSubscription(ENV);
+
   const driftClient = new DriftClient({
     connection,
     wallet,
-    env: 'devnet',
+    env: ENV,
     perpMarketIndexes,
     spotMarketIndexes,
     oracleInfos,
+    opts: {
+      skipPreflight: ENV === 'devnet', // Only skip on DevNet
+      commitment: 'confirmed',
+    },
+    accountSubscription: {
+      type: 'websocket',
+      resubTimeoutMs: 15_000,
+    },
   });
 
-  await driftClient.subscribe();
+  try {
+    await driftClient.subscribe();
+    
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`Trade attempt ${attempt}/${MAX_RETRIES}`);
+        
+        const txSig = await driftClient.placePerpOrder({
+          orderType: OrderType.MARKET,
+          marketIndex: MARKET_INDEX,
+          baseAssetAmount: BASE_ASSET_AMOUNT,
+          direction: PositionDirection.LONG,
+        });
 
-  const marketIndex = 1;
-  const baseAssetAmount = new BN(10_000_000); // 1.0 base asset with 6 decimals
-
-  // ✅ Oracle delay check
-
-  const oracleDelay = await checkOracleFreshness();
-  console.log(`Oracle delay for market ${marketIndex}: ${oracleDelay}s`);
-
-  if (oracleDelay !== undefined && oracleDelay > ALLOWED_ORACLE_DELAY_SECONDS) {
-    console.warn(`🚨 Oracle data too stale. Skipping position open.`);
+        console.log('✅ Trade executed successfully!');
+        console.log('Tx:', txSig);
+        return txSig;
+      } catch (error) {
+        console.error(`Attempt ${attempt} failed:`, error);
+        if (attempt < MAX_RETRIES) await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+      }
+    }
+    
+    throw new Error(`Failed after ${MAX_RETRIES} attempts`);
+  } finally {
     await driftClient.unsubscribe();
-    return;
   }
-
-  console.log('Perp markets:', perpMarketIndexes);
-    const perpMarkets = driftClient.getPerpMarketAccounts();
-perpMarkets.forEach((market, index) => {
-  console.log(`Market Index: ${index}, Market Name: ${decodeMarketName(market.name)}`);
-});
-  console.log('Spot markets:', spotMarketIndexes);
-
-  // ✅ Optional: Log current oracle price
-  const oraclePrice = await driftClient.getOracleDataForPerpMarket(marketIndex);
-  console.log(`Oracle price: ${oraclePrice.price.toString()}`);
-
-  console.log('📤 Placing perp order...');
-  const orderTxSig = await driftClient.placePerpOrder({
-    orderType: OrderType.MARKET,
-    marketIndex,
-    baseAssetAmount,
-    direction: PositionDirection.LONG,
-  });
-
-  console.log('✅ Position opened! Tx Signature:', orderTxSig);
-
-  await driftClient.unsubscribe();
 }
 
-openPosition().catch((err) => {
-  console.error('❌ Error placing order:', err);
+executeTrade().catch(err => {
+  console.error('Trade failed:', err);
+  process.exit(1);
 });
-
-
-function decodeMarketName(asciiArray: any[]) {
-  return asciiArray.map(code => String.fromCharCode(code)).join('').trim();
-}
