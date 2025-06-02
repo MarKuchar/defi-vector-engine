@@ -1,4 +1,4 @@
-import { CircuitBreaker } from '../interfaces/CircuitBreaker';
+import { CircuitBreaker } from '../interfaces/circuitBreaker';
 
 interface CircuitBreakerConfig {
   maxDailyLoss?: number;

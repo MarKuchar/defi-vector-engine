@@ -10,7 +10,7 @@ import { getWalletFromEnv } from './wallet/wallet';
 import { MeanReversionStrategy } from './strategies/MeanReversionStrategy';
 import { RiskEngine } from './services/RiskEngine';
 import { PositionManager } from './services/PositionManager';
-import { RiskConfig } from './types/RiskConfig';
+import { DEFAULT_RISK_CONFIG } from './types/RiskConfig';
 
 // Initialize connections
 const connection = new Connection(
@@ -23,7 +23,6 @@ async function main() {
   try {
     // Load configurations
     const strategyConfig = await loadStrategyConfig();
-    const riskConfig = await loadRiskConfig();
     console.log('Strategy Config loaded:', strategyConfig);
 
     // Initialize services
@@ -41,7 +40,7 @@ async function main() {
 
     const marketDataService = new MarketDataService();
     const strategy = new MeanReversionStrategy(strategyConfig);
-    const riskEngine = new RiskEngine(driftClient, riskConfig);
+    const riskEngine = new RiskEngine(driftClient, DEFAULT_RISK_CONFIG);
     const positionManager = new PositionManager(driftClient, riskEngine);
     const circuitBreaker = new SimpleCircuitBreaker(
       strategyConfig.circuitBreaker || { maxDailyLoss: -0.05, maxDrawdown: -0.1 }
@@ -113,27 +112,6 @@ async function loadStrategyConfig() {
     'utf8'
   );
   return parseStrategyConfig(JSON.parse(raw));
-}
-
-async function loadRiskConfig(): Promise<RiskConfig> {
-  try {
-    const raw = await fs.readFile(
-      path.resolve(__dirname, './config/risk/default.json'),
-      'utf8'
-    );
-    return JSON.parse(raw);
-  } catch {
-    console.log('Using default risk configuration');
-    return {
-      maxPositionSize: 0.1,
-      maxLeverage: 3,
-      dailyLossLimit: 0.05,
-      minEquityRatio: 0.1,
-      maintenanceMarginBuffer: 0.05,
-      minLiquidity: 10000,
-      cooldownAfterLoss: 0
-    };
-  }
 }
 
 main();

@@ -1,4 +1,3 @@
-// src/services/PositionManager.ts
 import { DriftClient, OrderType, PositionDirection } from '@drift-labs/sdk';
 import { BN } from 'bn.js';
 import { RiskEngine } from './RiskEngine';
@@ -23,9 +22,11 @@ export class PositionManager {
     size: number,
     direction: 'LONG' | 'SHORT'
   ): Promise<boolean> {
-    if (!await this.riskEngine.canOpenPosition(market, size)) {
-      return false;
-    }
+      const canOpen = await this.riskEngine.canOpenPosition(market, size);
+      if (!canOpen) {
+        console.warn(`Risk check failed for ${market} ${direction} position`);
+        return false;
+      }
 
     try {
       const txSig = await this.driftClient.placePerpOrder({

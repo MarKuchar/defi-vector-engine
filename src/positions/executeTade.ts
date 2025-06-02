@@ -12,25 +12,17 @@ import { getWalletFromEnv } from '../wallet/wallet';
 dotenv.config();
 
 // Config
-const ENV = 'devnet'; // Change to 'mainnet-beta' when ready
+const ENV = 'devnet';
 const MARKET_INDEX = 0; // SOL
 const BASE_ASSET_AMOUNT = new BN(10_000_000); // 0.1 SOL
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
 
-interface TradeOrder {
-  type: 'MARKET' | 'LIMIT';
-  price?: number;
-  timeInForce?: number;
-}
-
-export async function executeTrade(): Promise<string | undefined> {
-  const orderParams = {
-    orderType: order.type === 'MARKET' ?
-      OrderType.MARKET :
-      OrderType.LIMIT,
-    price: order.price ? new BN(order.price * 1e6) : undefined,
-  };
+export async function executeTrade(
+  direction: PositionDirection = PositionDirection.LONG, // Default to LONG
+  orderType: OrderType = OrderType.MARKET, // Default to MARKET
+  price?: number // Optional price for LIMIT orders
+): Promise<string | undefined> {
   const connection = new Connection(process.env.SOLANA_CLUSTER_URL!, {
     commitment: 'confirmed'
   });
@@ -47,7 +39,7 @@ export async function executeTrade(): Promise<string | undefined> {
     spotMarketIndexes,
     oracleInfos,
     opts: {
-      skipPreflight: ENV === 'devnet', // Only skip on DevNet
+      skipPreflight: ENV === 'devnet',
       commitment: 'confirmed',
     },
     accountSubscription: {
@@ -64,10 +56,11 @@ export async function executeTrade(): Promise<string | undefined> {
         console.log(`Trade attempt ${attempt}/${MAX_RETRIES}`);
 
         const txSig = await driftClient.placePerpOrder({
-          orderType: OrderType.MARKET,
+          orderType,
           marketIndex: MARKET_INDEX,
           baseAssetAmount: BASE_ASSET_AMOUNT,
-          direction: PositionDirection.LONG,
+          direction,
+          ...(price && { price: new BN(price * 1e6) }), // Only include price if provided
         });
 
         console.log('✅ Trade executed successfully!');
@@ -84,8 +77,3 @@ export async function executeTrade(): Promise<string | undefined> {
     await driftClient.unsubscribe();
   }
 }
-
-executeTrade().catch(err => {
-  console.error('Trade failed:', err);
-  process.exit(1);
-});
