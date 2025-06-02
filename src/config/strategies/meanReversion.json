@@ -1,0 +1,23 @@
+{
+  "strategy": "meanReversion",
+  "pair": "SOL-PERP",
+  "entryRules": {
+    "priceAboveMA": {
+      "period": 50,
+      "threshold": 1.5
+    },
+    "rsiConditions": {
+      "period": 14,
+      "overbought": 70,
+      "oversold": 30
+    }
+  },
+  "risk": {
+    "maxPositionSize": 0.1,
+    "stopLoss": 0.05
+  },
+  "circuitBreaker": {
+    "maxDailyLoss": -0.05,
+    "maxDrawdown": -0.1
+  }
+}

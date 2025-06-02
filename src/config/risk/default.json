@@ -1,0 +1,20 @@
+{
+  "maxPositionSize": 0.15,
+  "maxLeverage": 5,
+  "dailyLossLimit": 0.1,
+  "weeklyLossLimit": 0.25,
+  "minEquityRatio": 0.08,
+  "maintenanceMarginBuffer": 0.03,
+  "maxVolatility": 5,
+  "minLiquidity": 20000,
+  "cooldownAfterLoss": 600,
+  "marketOverrides": {
+    "SOL-PERP": {
+      "maxPositionSize": 0.2,
+      "maxLeverage": 8
+    },
+    "BTC-PERP": {
+      "maxPositionSize": 0.1
+    }
+  }
+}

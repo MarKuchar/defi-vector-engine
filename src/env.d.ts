@@ -7,5 +7,6 @@ declare namespace NodeJS {
     WALLET_PATH?: string;
     WALLET_KEYPAIR_PATH?: string;
     PRIVATE_KEY?: string;
+    STRATEGY_NAME?: string
   }
 }

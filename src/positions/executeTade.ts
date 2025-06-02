@@ -18,13 +18,25 @@ const BASE_ASSET_AMOUNT = new BN(10_000_000); // 0.1 SOL
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
 
-async function executeTrade() {
+interface TradeOrder {
+  type: 'MARKET' | 'LIMIT';
+  price?: number;
+  timeInForce?: number;
+}
+
+export async function executeTrade(): Promise<string | undefined> {
+  const orderParams = {
+    orderType: order.type === 'MARKET' ?
+      OrderType.MARKET :
+      OrderType.LIMIT,
+    price: order.price ? new BN(order.price * 1e6) : undefined,
+  };
   const connection = new Connection(process.env.SOLANA_CLUSTER_URL!, {
     commitment: 'confirmed'
   });
-  
+
   const wallet = getWalletFromEnv();
-  const { perpMarketIndexes, spotMarketIndexes, oracleInfos } = 
+  const { perpMarketIndexes, spotMarketIndexes, oracleInfos } =
     getMarketsAndOraclesForSubscription(ENV);
 
   const driftClient = new DriftClient({
@@ -46,11 +58,11 @@ async function executeTrade() {
 
   try {
     await driftClient.subscribe();
-    
+
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         console.log(`Trade attempt ${attempt}/${MAX_RETRIES}`);
-        
+
         const txSig = await driftClient.placePerpOrder({
           orderType: OrderType.MARKET,
           marketIndex: MARKET_INDEX,
@@ -66,7 +78,7 @@ async function executeTrade() {
         if (attempt < MAX_RETRIES) await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
       }
     }
-    
+
     throw new Error(`Failed after ${MAX_RETRIES} attempts`);
   } finally {
     await driftClient.unsubscribe();
