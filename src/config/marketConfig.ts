@@ -30,14 +30,14 @@ export const marketConfig: MarketConfig = {
     trackOraclePrice: true,
     trackFundingRate: false,
     trackVolume: true,
-    trackOpenInterest: true,
-    trackDailyChange: false,
+    trackOpenInterest: false,
+    trackDailyChange: true,
     trackOrderbook: false,
   },
   pollingIntervalMs: 1000,
   pricePrecision: 4,
   volumePrecision: 0,
-  maxDataAgeMs: 15000,
+  maxDataAgeMs: 30000,
 };
 
 // Validation function

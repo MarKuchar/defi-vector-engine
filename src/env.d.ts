@@ -18,6 +18,7 @@ declare namespace NodeJS {
     ORACLE_PUBKEY?: string;
     DRIFT_ENV?: string;
     MARKET_INDEX?: string;
+    NODE_ENV?: string;
     LOG_LEVEL?: 'error' | 'warn' | 'info' | 'debug';
   }
 }

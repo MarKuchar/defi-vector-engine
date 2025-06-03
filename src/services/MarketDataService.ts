@@ -28,19 +28,26 @@ export class MarketDataService extends EventEmitter {
   private driftClient!: DriftClient;
   private isSubscribed = false;
   private marketIndex: number;
-  private lastUpdateTime = 0;
+  private lastUpdateTime = Date.now();
   private updateCount = 0;
   private logLevel: 'error' | 'warn' | 'info' | 'debug';
+  private lastMarkPrice: number | null = null;
+  private healthCheckInterval!: NodeJS.Timeout;
+  private config = marketConfig;
 
   constructor(
-    perpMarketIndexes: number[] = [0], // Default SOL-PERP
-    private spotMarketIndexes: number[] = [0, 1] // Default USDC and SOL spot
+    perpMarketIndexes: number[] = [0],
+    private spotMarketIndexes: number[] = [0, 1]
   ) {
     super();
     this.marketIndex = process.env.MARKET_INDEX ?
       parseInt(process.env.MARKET_INDEX) :
       perpMarketIndexes[0];
+
     this.logLevel = (process.env.LOG_LEVEL as any) || 'info';
+    this.lastMarkPrice = null;
+
+    this.setupHealthCheck();
   }
 
   public async init(): Promise<void> {
@@ -95,29 +102,31 @@ export class MarketDataService extends EventEmitter {
       };
 
       // Price Data
-      if (marketConfig.indicators.trackMarkPrice) {
+      if (this.config.indicators.trackMarkPrice) {
         update.markPrice = parseFloat((market.amm.lastMarkPriceTwap.toNumber() / 1e6).toFixed(6));
+
+        // Now we can calculate daily change
+        if (this.lastMarkPrice !== null && update.markPrice !== undefined) {
+          update.dailyChangePercent = parseFloat(
+            (((update.markPrice - this.lastMarkPrice) / this.lastMarkPrice) * 100).toFixed(2)
+          );
+        }
+        this.lastMarkPrice = update.markPrice;
       }
 
       // Funding Rate
       if (marketConfig.indicators.trackFundingRate) {
-        const fundingRate = market.amm.lastFundingRate.toNumber() / 1e9; // Proper scaling
-        update.fundingRate = parseFloat((fundingRate * 100).toFixed(4)); // Convert to percentage
+        update.fundingRate = parseFloat((market.amm.lastFundingRate.toNumber() / 10000).toFixed(6));
       }
-
 
       // Volume (using base asset amount)
       if (marketConfig.indicators.trackVolume) {
-        update.volume = parseFloat((
-          market.amm.baseAssetAmountWithUnsettledLp.abs().toNumber() / 1e6
-        ).toFixed(marketConfig.volumePrecision));
+        update.volume = parseFloat((market.amm.baseAssetAmountWithAmm.abs().toNumber() / 1e6 ).toFixed(0));
       }
 
       // Open Interest (using maxOpenInterest)
       if (marketConfig.indicators.trackOpenInterest) {
-        update.openInterest = parseFloat((
-          market.amm.maxOpenInterest.toNumber() / 1e6
-        ).toFixed(marketConfig.volumePrecision));
+        update.openInterest = parseFloat((market.amm.maxOpenInterest.toNumber() / 1e6).toFixed(marketConfig.volumePrecision));
       }
 
       this.updateCount++;
@@ -166,7 +175,35 @@ export class MarketDataService extends EventEmitter {
     }
   }
 
+  private setupHealthCheck() {
+    if (process.env.NODE_ENV !== 'test') {
+      this.healthCheckInterval = setInterval(() => {
+        if (Date.now() - this.lastUpdateTime > this.config.maxDataAgeMs) {
+          // Only warn if we've actually had updates before
+          if (this.updateCount > 0) {
+            this.log('warn', `Stale data - last update ${(Date.now() - this.lastUpdateTime) / 1000}s ago`);
+            this.reconnect();
+          }
+        }
+      }, 5000);
+    }
+  }
+
+  private async reconnect() {
+    this.log('warn', 'Attempting reconnect...');
+    try {
+      await this.close();
+      await this.init();
+      this.log('info', 'Reconnect successful');
+    } catch (err) {
+      this.log('error', 'Reconnect failed', err);
+    }
+  }
+
   public async close(): Promise<void> {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+    }
     if (this.isSubscribed) {
       try {
         this.removeEventListeners();
