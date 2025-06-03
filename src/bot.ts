@@ -11,6 +11,8 @@ import { MeanReversionStrategy } from './strategies/MeanReversionStrategy';
 import { RiskEngine } from './services/RiskEngine';
 import { PositionManager } from './services/PositionManager';
 import { DEFAULT_RISK_CONFIG } from './types/RiskConfig';
+import { StrategyConfig } from './strategies/StrategyTypes';
+
 
 // Initialize connections
 const connection = new Connection(
@@ -105,13 +107,21 @@ async function main() {
   }
 }
 
-async function loadStrategyConfig() {
+async function loadStrategyConfig(): Promise<StrategyConfig> {
   const strategyName = process.env.STRATEGY_NAME || 'meanReversion';
-  const raw = await fs.readFile(
-    path.resolve(__dirname, `./config/strategies/${strategyName}.json`),
-    'utf8'
+  const configPath = path.resolve(
+    __dirname, 
+    `./config/strategies/${strategyName}.json`
   );
-  return parseStrategyConfig(JSON.parse(raw));
+  
+  try {
+    const raw = await fs.readFile(configPath, 'utf8');
+    const json = JSON.parse(raw);
+    return parseStrategyConfig(json);
+  } catch (err) {
+    console.error(`Failed to load strategy config from ${configPath}:`, err);
+    throw new Error(`Invalid strategy configuration`);
+  }
 }
 
 main();

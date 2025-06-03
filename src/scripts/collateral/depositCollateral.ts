@@ -5,7 +5,7 @@ import {
   getMarketsAndOraclesForSubscription,
 } from '@drift-labs/sdk';
 import BN from 'bn.js';
-import { getWalletFromEnv } from '../wallet/wallet';
+import { getWalletFromEnv } from '../../wallet/wallet';
 dotenv.config();
 
 async function depositCollateral() {

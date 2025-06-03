@@ -1,6 +1,5 @@
 import {
   getAccount,
-  getAssociatedTokenAddress,
   getOrCreateAssociatedTokenAccount,
   AccountLayout,
 } from "@solana/spl-token";
@@ -11,7 +10,7 @@ import {
 } from "@solana/web3.js";
 import dotenv from "dotenv";
 import * as fs from "fs";
-import { getWalletFromEnv } from "../wallet/wallet";
+import { getWalletFromEnv } from "../../wallet/wallet";
 
 dotenv.config();
 

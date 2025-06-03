@@ -10,7 +10,7 @@ export class MeanReversionStrategy {
     // Initialize indicators with config values
     const maPeriod = config.entryRules?.priceAboveMA.period || config.params?.lookbackPeriod || 50;
     const rsiPeriod = config.entryRules?.rsiConditions.period || 14;
-    
+
     this.sma = new SMA(maPeriod);
     this.rsi = new RSI(rsiPeriod);
   }
@@ -23,7 +23,7 @@ export class MeanReversionStrategy {
 
   generateSignal(data: MarketData): TradeSignal {
     this.update(data);
-    
+
     const currentSMA = this.sma.getResult();
     const currentRSI = this.rsi.getResult();
     const lastPrice = this.prices[this.prices.length - 1];
@@ -57,6 +57,12 @@ export class MeanReversionStrategy {
         reason: stopLoss ? 'Stop loss triggered' : 'Take profit reached'
       };
     }
+
+    console.log(`[${new Date().toISOString()}] Indicators`,
+      `RSI: ${currentRSI?.toFixed(2)}`,
+      `SMA: ${currentSMA?.toFixed(2)}`,
+      `Price/SMA: ${(lastPrice / numericSMA).toFixed(2)}`
+    );
 
     return { direction: null, size: 0 };
   }

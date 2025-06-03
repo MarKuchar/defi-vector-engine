@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import { Connection, clusterApiUrl, Keypair, Transaction, PublicKey } from '@solana/web3.js';
-import { DriftClient, getMarketsAndOraclesForSubscription, IWallet, DriftClientConfig, DriftEnv } from '@drift-labs/sdk';
-import { getWalletFromEnv } from '../wallet/wallet';
+import { Connection, clusterApiUrl } from '@solana/web3.js';
+import { DriftClient, getMarketsAndOraclesForSubscription, DriftClientConfig } from '@drift-labs/sdk';
+import { getWalletFromEnv } from '../../wallet/wallet';
 import dotenv from 'dotenv';
 dotenv.config();
 

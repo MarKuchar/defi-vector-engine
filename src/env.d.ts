@@ -7,6 +7,17 @@ declare namespace NodeJS {
     WALLET_PATH?: string;
     WALLET_KEYPAIR_PATH?: string;
     PRIVATE_KEY?: string;
-    STRATEGY_NAME?: string
+    STRATEGY_NAME?: string;
+    RPC_ENDPOINT?: string;
+    USDC_ATA_ADDRESS?: string;
+    PROGRAM_ID?: string;
+    PDA_SEEDS?: string;
+    COMMITMENT?: string;
+    RPC_URL?: string;
+    OWNER_PUBLIC_KEY: string;
+    ORACLE_PUBKEY?: string;
+    DRIFT_ENV?: string;
+    MARKET_INDEX?: string;
+    LOG_LEVEL?: 'error' | 'warn' | 'info' | 'debug';
   }
 }

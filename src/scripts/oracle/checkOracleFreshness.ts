@@ -1,6 +1,6 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { DriftClient, getMarketsAndOraclesForSubscription } from "@drift-labs/sdk";
-import { getWalletFromEnv } from "../wallet/wallet";
+import { getWalletFromEnv } from "../../wallet/wallet";
 import { parsePriceData } from "@pythnetwork/client";
 import dotenv from "dotenv";
 dotenv.config();

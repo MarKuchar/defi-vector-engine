@@ -1,6 +1,6 @@
 import { Connection, clusterApiUrl } from '@solana/web3.js';
 import { DriftClient, getMarketsAndOraclesForSubscription } from '@drift-labs/sdk';
-import { getWalletFromEnv } from '../wallet/wallet';
+import { getWalletFromEnv } from '../../wallet/wallet';
 
 async function getPositions() {
   const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
