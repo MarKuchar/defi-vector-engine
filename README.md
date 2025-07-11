@@ -89,8 +89,6 @@ Each command can be executed using `npx ts-node`:
 
 ## Solana SPL Token CLI Reference
 
-Replace placeholders as needed:
-
 ```bash
 export RPC_ENDPOINT=https://api.devnet.solana.com
 export OWNER_PUBLIC_KEY=<YOUR_OWNER_PUBLIC_KEY>
