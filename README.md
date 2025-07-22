@@ -1,4 +1,38 @@
 # Drift Trading Bot
+[![Node.js CI](https://github.com/yourusername/drift-trading-bot/actions/workflows/node.js.yml/badge.svg)](https://github.com/yourusername/drift-trading-bot/actions/workflows/node.js.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Automated market-making and mean-reversion trading bot for Solana's Drift Protocol.
+
+## 📋 Prerequisites
+
+### Hardware
+- Minimum: 2 CPU cores, 4GB RAM, 50GB SSD
+- Recommended: 4+ CPU cores, 8GB RAM, NVMe SSD (for low-latency trading)
+
+### Software
+- Node.js 18.x+
+- Yarn 1.22.x+
+- Solana CLI 1.10.x+
+- Docker 20.x+ (optional for containerization)
+
+### API Keys
+- Drift API access
+- Pyth oracle mainnet endpoint
+- Private RPC endpoint (recommended)
+
+## 🛠 Installation
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/drift-trading-bot.git
+cd drift-trading-bot
+
+# Install dependencies
+yarn install
+
+# Set up environment
+cp .env.example .env
 
 ## Overview
 
@@ -108,3 +142,9 @@ spl-token transfer $MINT <RECIPIENT_ADDRESS> <AMOUNT> --owner $OWNER_PUBLIC_KEY 
 
 # Mint info
 spl-token mint-info $MINT --url $RPC_ENDPOINT
+
+## ⚙️ Configuration
+RPC_URL=your_private_rpc_endpoint
+DRIFT_ENV=mainnet # or devnet
+MARKET_INDEX=0 # 0 = SOL-PERP
+STRATEGY_NAME=meanReversion
