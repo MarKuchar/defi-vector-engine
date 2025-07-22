@@ -1,11 +1,9 @@
-import { CircuitBreaker } from '../interfaces/circuitBreaker';
-
 interface CircuitBreakerConfig {
   maxDailyLoss?: number;
   maxDrawdown?: number;
 }
 
-export class SimpleCircuitBreaker implements CircuitBreaker {
+export class SimpleCircuitBreaker {
   private maxDailyLoss: number;
   private maxDrawdown: number;
 

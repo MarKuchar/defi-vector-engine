@@ -5,6 +5,7 @@ import {
   PerpMarketAccount,
   OraclePriceData,
   OracleSource,
+  EventSubscriber,
 } from '@drift-labs/sdk';
 import { PublicKey, Connection, clusterApiUrl } from '@solana/web3.js';
 import EventEmitter from 'events';
@@ -26,6 +27,7 @@ export interface MarketDataUpdate {
 
 export class MarketDataService extends EventEmitter {
   private driftClient!: DriftClient;
+  private eventSubscriber!: EventSubscriber;
   private isSubscribed = false;
   private marketIndex: number;
   private lastUpdateTime = Date.now();
@@ -34,6 +36,8 @@ export class MarketDataService extends EventEmitter {
   private lastMarkPrice: number | null = null;
   private healthCheckInterval!: NodeJS.Timeout;
   private config = marketConfig;
+  private rolling24hVolume = 0;
+  private lastCleanupTime = Date.now();
 
   constructor(
     perpMarketIndexes: number[] = [0],
@@ -85,7 +89,7 @@ export class MarketDataService extends EventEmitter {
       await this.driftClient.subscribe();
       this.isSubscribed = true;
       this.setupEventListeners();
-
+      this.setupEventSubscriber();
       this.log('info', `MarketDataService initialized for market index ${this.marketIndex}`);
     } catch (err) {
       this.log('error', 'Failed to initialize MarketDataService', err);
@@ -103,7 +107,7 @@ export class MarketDataService extends EventEmitter {
 
       // Price Data
       if (this.config.indicators.trackMarkPrice) {
-        update.markPrice = parseFloat((market.amm.lastMarkPriceTwap.toNumber() / 1e6).toFixed(6));
+        update.markPrice = parseFloat((market.amm.lastMarkPriceTwap.toNumber() / 1e6).toFixed(this.config.pricePrecision));
 
         // Now we can calculate daily change
         if (this.lastMarkPrice !== null && update.markPrice !== undefined) {
@@ -116,12 +120,13 @@ export class MarketDataService extends EventEmitter {
 
       // Funding Rate
       if (marketConfig.indicators.trackFundingRate) {
-        update.fundingRate = parseFloat((market.amm.lastFundingRate.toNumber() / 10000).toFixed(6));
+        const fundingBps = market.amm.lastFundingRate.toNumber();
+        update.fundingRate = parseFloat((fundingBps / 1e6).toFixed(6));
       }
 
       // Volume (using base asset amount)
       if (marketConfig.indicators.trackVolume) {
-        update.volume = parseFloat((market.amm.baseAssetAmountWithAmm.abs().toNumber() / 1e6 ).toFixed(0));
+        // Switch to fully to event-based volume
       }
 
       // Open Interest (using maxOpenInterest)
@@ -131,11 +136,6 @@ export class MarketDataService extends EventEmitter {
 
       this.updateCount++;
       this.lastUpdateTime = now;
-
-      console.debug('Raw AMM values:', {
-        funding: market.amm.lastFundingRate.toNumber(),
-        volume: market.amm.baseAssetAmountWithUnsettledLp.toNumber()
-      });
 
       if (Object.keys(update).length > 1) {
         this.logMarketData(update);
@@ -159,6 +159,28 @@ export class MarketDataService extends EventEmitter {
     }
   };
 
+  private handleDriftEvent = (ev: any) => {
+    if (ev.eventType === 'OrderRecord' && ev.marketIndex === this.marketIndex) {
+      const now = Date.now();
+      const amount = Math.abs(ev.baseAssetAmount.toNumber()) / this.config.volumeDivisor;
+
+      // Cleanup old trades periodically (every 5 minutes)
+      if (now - this.lastCleanupTime > 300000) {
+        const cutoff = now - 86400000; // 24 hours
+        // This assumes you keep the tradeHistory for other purposes
+        // Otherwise just maintain the running sum
+        this.lastCleanupTime = now;
+      }
+
+      this.rolling24hVolume += amount;
+      const update: MarketDataUpdate = {
+        timestamp: now,
+        volume: +this.rolling24hVolume.toFixed(this.config.volumePrecision)
+      };
+      this.emit('update', update);
+    }
+  };
+
   private setupEventListeners() {
     this.driftClient.eventEmitter.on('perpMarketAccountUpdate', this.handlePerpMarketUpdate);
     this.driftClient.eventEmitter.on('oraclePriceUpdate', this.handleOraclePriceUpdate);
@@ -166,6 +188,19 @@ export class MarketDataService extends EventEmitter {
       this.log('error', 'Drift client error', err);
       this.emit('error', err);
     });
+  }
+
+  private async setupEventSubscriber() {
+    this.eventSubscriber = new EventSubscriber(
+      this.driftClient.connection,
+      this.driftClient.program,
+      {
+        eventTypes: ['OrderRecord', 'OrderActionRecord', 'SettlePnlRecord'],
+        logProviderConfig: { type: 'websocket' }
+      }
+    );
+    await this.eventSubscriber.subscribe();
+    this.eventSubscriber.eventEmitter.on('newEvent', this.handleDriftEvent);
   }
 
   private removeEventListeners() {
@@ -207,6 +242,7 @@ export class MarketDataService extends EventEmitter {
     if (this.isSubscribed) {
       try {
         this.removeEventListeners();
+        await this.eventSubscriber.unsubscribe();
         await this.driftClient.unsubscribe();
         this.isSubscribed = false;
         this.log('info', 'MarketDataService successfully closed');

@@ -12,9 +12,11 @@ const MarketConfigSchema = z.object({
     trackOpenInterest: z.boolean().default(true),
     trackDailyChange: z.boolean().default(false),
     trackOrderbook: z.boolean().default(false),
+    minValidVolume: z.number().int().min(1000).max(60000).default(10000),
   }),
   pollingIntervalMs: z.number().int().min(1000).max(60000).default(10000),
   pricePrecision: z.number().int().min(2).max(8).default(4),
+  volumeDivisor: z.number().int().min(1000).max(60000).default(10000),
   volumePrecision: z.number().int().min(0).max(8).default(2),
   maxDataAgeMs: z.number().int().min(1000).default(15000),
 });
@@ -33,10 +35,12 @@ export const marketConfig: MarketConfig = {
     trackOpenInterest: false,
     trackDailyChange: true,
     trackOrderbook: false,
+    minValidVolume: 1000,
   },
   pollingIntervalMs: 1000,
   pricePrecision: 4,
-  volumePrecision: 0,
+  volumeDivisor: 1e9,
+  volumePrecision: 2,
   maxDataAgeMs: 30000,
 };
 
