@@ -12,45 +12,45 @@ import EventEmitter from 'events';
 import { marketConfig } from '../config/marketConfig';
 import dotenv from 'dotenv';
 import { getWalletFromEnv } from '../wallet/wallet';
+import { Candle } from '../dataholders/Candle';
 
 dotenv.config();
 
 export interface MarketDataUpdate {
   markPrice?: number;
   fundingRate?: number;
-  oraclePrice?: number;
-  volume?: number;
   openInterest?: number;
-  dailyChangePercent?: number;
   timestamp: number;
 }
 
+export interface OracleUpdate {
+  publicKey: PublicKey;
+  oracleSource: OracleSource;
+  data: OraclePriceData;
+}
+
 export class MarketDataService extends EventEmitter {
+  private candles: Map<string, Candle[]> = new Map();
+  private currentMinuteCandle: Partial<Candle> = {};
+
   private driftClient!: DriftClient;
   private eventSubscriber!: EventSubscriber;
   private isSubscribed = false;
-  private marketIndex: number;
+  public marketIndex: number;
   private lastUpdateTime = Date.now();
   private updateCount = 0;
   private logLevel: 'error' | 'warn' | 'info' | 'debug';
-  private lastMarkPrice: number | null = null;
   private healthCheckInterval!: NodeJS.Timeout;
-  private config = marketConfig;
-  private rolling24hVolume = 0;
-  private lastCleanupTime = Date.now();
 
   constructor(
     perpMarketIndexes: number[] = [0],
     private spotMarketIndexes: number[] = [0, 1]
   ) {
     super();
-    this.marketIndex = process.env.MARKET_INDEX ?
-      parseInt(process.env.MARKET_INDEX) :
-      perpMarketIndexes[0];
-
+    this.marketIndex = process.env.MARKET_INDEX
+      ? parseInt(process.env.MARKET_INDEX)
+      : perpMarketIndexes[0];
     this.logLevel = (process.env.LOG_LEVEL as any) || 'info';
-    this.lastMarkPrice = null;
-
     this.setupHealthCheck();
   }
 
@@ -64,7 +64,6 @@ export class MarketDataService extends EventEmitter {
         process.env.RPC_URL || clusterApiUrl('devnet'),
         'confirmed'
       );
-
       const wallet = getWalletFromEnv();
 
       const driftConfig: DriftClientConfig = {
@@ -77,19 +76,22 @@ export class MarketDataService extends EventEmitter {
         },
         perpMarketIndexes: [this.marketIndex],
         spotMarketIndexes: this.spotMarketIndexes,
-        oracleInfos: [{
-          publicKey: new PublicKey(
-            process.env.ORACLE_PUBKEY || 'J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix'
-          ),
-          source: OracleSource.PYTH,
-        }],
+        oracleInfos: [
+          {
+            publicKey: new PublicKey(
+              process.env.ORACLE_PUBKEY || 'J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix'
+            ),
+            source: OracleSource.PYTH,
+          },
+        ],
       };
 
       this.driftClient = new DriftClient(driftConfig);
       await this.driftClient.subscribe();
       this.isSubscribed = true;
+
       this.setupEventListeners();
-      this.setupEventSubscriber();
+
       this.log('info', `MarketDataService initialized for market index ${this.marketIndex}`);
     } catch (err) {
       this.log('error', 'Failed to initialize MarketDataService', err);
@@ -98,88 +100,60 @@ export class MarketDataService extends EventEmitter {
     }
   }
 
-  private handlePerpMarketUpdate = (market: PerpMarketAccount) => {
-    if (market.marketIndex === this.marketIndex) {
-      const now = Date.now();
-      const update: MarketDataUpdate = {
-        timestamp: now
+  public getCandles(timeframe: string, limit = 200): Candle[] {
+    return this.candles.get(timeframe)?.slice(-limit) || [];
+  }
+
+  private updateCandles(price: number, timestamp: number) {
+    const minute = Math.floor(timestamp / 60000) * 60000;
+
+    if (!this.currentMinuteCandle.timestamp) {
+      // Initialize new candle
+      this.currentMinuteCandle = {
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+        volume: 0,
+        timestamp: minute,
+        timeframe: '1m'
       };
+    } else if (timestamp >= minute + 60000) {
+      // Finalize current candle
+      this.saveCandle(this.currentMinuteCandle as Candle);
 
-      // Price Data
-      if (this.config.indicators.trackMarkPrice) {
-        update.markPrice = parseFloat((market.amm.lastMarkPriceTwap.toNumber() / 1e6).toFixed(this.config.pricePrecision));
-
-        // Now we can calculate daily change
-        if (this.lastMarkPrice !== null && update.markPrice !== undefined) {
-          update.dailyChangePercent = parseFloat(
-            (((update.markPrice - this.lastMarkPrice) / this.lastMarkPrice) * 100).toFixed(2)
-          );
-        }
-        this.lastMarkPrice = update.markPrice;
-      }
-
-      // Funding Rate
-      if (marketConfig.indicators.trackFundingRate) {
-        const fundingBps = market.amm.lastFundingRate.toNumber();
-        update.fundingRate = parseFloat((fundingBps / 1e6).toFixed(6));
-      }
-
-      // Volume (using base asset amount)
-      if (marketConfig.indicators.trackVolume) {
-        // Switch to fully to event-based volume
-      }
-
-      // Open Interest (using maxOpenInterest)
-      if (marketConfig.indicators.trackOpenInterest) {
-        update.openInterest = parseFloat((market.amm.maxOpenInterest.toNumber() / 1e6).toFixed(marketConfig.volumePrecision));
-      }
-
-      this.updateCount++;
-      this.lastUpdateTime = now;
-
-      if (Object.keys(update).length > 1) {
-        this.logMarketData(update);
-        this.emit('update', update);
-      }
-    }
-  };
-
-  private handleOraclePriceUpdate = (
-    publicKey: PublicKey,
-    oracleSource: OracleSource,
-    data: OraclePriceData
-  ) => {
-    if (marketConfig.indicators.trackOraclePrice) {
-      const update: MarketDataUpdate = {
-        oraclePrice: parseFloat((data.price.toNumber() / 1e6).toFixed(6)),
-        timestamp: Date.now()
+      // Start new candle
+      this.currentMinuteCandle = {
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+        volume: 0,
+        timestamp: minute,
+        timeframe: '1m'
       };
-      this.log('debug', 'Oracle price update', update);
-      this.emit('update', update);
+    } else {
+      // Update current candle
+      this.currentMinuteCandle.high = Math.max(this.currentMinuteCandle.high || 0, price);
+      this.currentMinuteCandle.low = Math.min(this.currentMinuteCandle.low || Infinity, price);
+      this.currentMinuteCandle.close = price;
     }
-  };
+  }
 
-  private handleDriftEvent = (ev: any) => {
-    if (ev.eventType === 'OrderRecord' && ev.marketIndex === this.marketIndex) {
-      const now = Date.now();
-      const amount = Math.abs(ev.baseAssetAmount.toNumber()) / this.config.volumeDivisor;
-
-      // Cleanup old trades periodically (every 5 minutes)
-      if (now - this.lastCleanupTime > 300000) {
-        const cutoff = now - 86400000; // 24 hours
-        // This assumes you keep the tradeHistory for other purposes
-        // Otherwise just maintain the running sum
-        this.lastCleanupTime = now;
-      }
-
-      this.rolling24hVolume += amount;
-      const update: MarketDataUpdate = {
-        timestamp: now,
-        volume: +this.rolling24hVolume.toFixed(this.config.volumePrecision)
-      };
-      this.emit('update', update);
+  private saveCandle(candle: Candle) {
+    const timeframe = candle.timeframe;
+    if (!this.candles.has(timeframe)) {
+      this.candles.set(timeframe, []);
     }
-  };
+
+    const candles = this.candles.get(timeframe)!;
+    candles.push(candle);
+
+    // Keep only last 200 candles per timeframe
+    if (candles.length > 200) {
+      candles.shift();
+    }
+  }
 
   private setupEventListeners() {
     this.driftClient.eventEmitter.on('perpMarketAccountUpdate', this.handlePerpMarketUpdate);
@@ -190,33 +164,43 @@ export class MarketDataService extends EventEmitter {
     });
   }
 
-  private async setupEventSubscriber() {
-    this.eventSubscriber = new EventSubscriber(
-      this.driftClient.connection,
-      this.driftClient.program,
-      {
-        eventTypes: ['OrderRecord', 'OrderActionRecord', 'SettlePnlRecord'],
-        logProviderConfig: { type: 'websocket' }
-      }
-    );
-    await this.eventSubscriber.subscribe();
-    this.eventSubscriber.eventEmitter.on('newEvent', this.handleDriftEvent);
-  }
+  private handlePerpMarketUpdate = (market: PerpMarketAccount) => {
+    if (market.marketIndex === this.marketIndex) {
+      const now = Date.now();
+      const price = market.amm.lastMarkPriceTwap.toNumber() / 1e6;
+      const update: MarketDataUpdate = {
+        timestamp: now,
+        markPrice: price,
+        fundingRate: market.amm.lastFundingRate.toNumber() / 1e6,
+        openInterest: market.amm.maxOpenInterest.toNumber() / 1e6,
+      };
 
-  private removeEventListeners() {
-    if (this.driftClient) {
-      this.driftClient.eventEmitter.off('perpMarketAccountUpdate', this.handlePerpMarketUpdate);
-      this.driftClient.eventEmitter.off('oraclePriceUpdate', this.handleOraclePriceUpdate);
+      this.updateCount++;
+      this.lastUpdateTime = now;
+
+      this.updateCandles(price, now);
+
+      this.emit('priceUpdate', update);
     }
-  }
+  };
+
+  private handleOraclePriceUpdate = (
+    publicKey: PublicKey,
+    oracleSource: OracleSource,
+    data: OraclePriceData
+  ) => {
+    this.emit('oracleUpdate', { publicKey, oracleSource, data });
+  };
 
   private setupHealthCheck() {
     if (process.env.NODE_ENV !== 'test') {
       this.healthCheckInterval = setInterval(() => {
-        if (Date.now() - this.lastUpdateTime > this.config.maxDataAgeMs) {
-          // Only warn if we've actually had updates before
+        if (Date.now() - this.lastUpdateTime > marketConfig.maxDataAgeMs) {
           if (this.updateCount > 0) {
-            this.log('warn', `Stale data - last update ${(Date.now() - this.lastUpdateTime) / 1000}s ago`);
+            this.log(
+              'warn',
+              `Stale data - last update ${(Date.now() - this.lastUpdateTime) / 1000}s ago`
+            );
             this.reconnect();
           }
         }
@@ -241,8 +225,8 @@ export class MarketDataService extends EventEmitter {
     }
     if (this.isSubscribed) {
       try {
-        this.removeEventListeners();
-        await this.eventSubscriber.unsubscribe();
+        this.driftClient.eventEmitter.off('perpMarketAccountUpdate', this.handlePerpMarketUpdate);
+        this.driftClient.eventEmitter.off('oraclePriceUpdate', this.handleOraclePriceUpdate);
         await this.driftClient.unsubscribe();
         this.isSubscribed = false;
         this.log('info', 'MarketDataService successfully closed');
@@ -251,28 +235,6 @@ export class MarketDataService extends EventEmitter {
         this.emit('error', err);
       }
     }
-  }
-
-  private logMarketData(data: MarketDataUpdate): void {
-    const logParts = [
-      `[${new Date(data.timestamp).toISOString()}]`,
-      `Market: ${this.marketIndex}`
-    ];
-
-    if (data.markPrice !== undefined) {
-      logParts.push(`Mark: ${data.markPrice.toFixed(4)}`);
-    }
-    if (data.oraclePrice !== undefined) {
-      logParts.push(`Oracle: ${data.oraclePrice.toFixed(4)}`);
-    }
-    if (data.volume !== undefined) {
-      logParts.push(`Vol: ${data.volume.toFixed(2)}`);
-    }
-    if (data.fundingRate !== undefined) {
-      logParts.push(`Funding: ${(data.fundingRate * 100).toFixed(4)}%`);
-    }
-
-    this.log('info', logParts.join(' '));
   }
 
   private log(level: 'error' | 'warn' | 'info' | 'debug', message: string, error?: any) {
@@ -287,22 +249,5 @@ export class MarketDataService extends EventEmitter {
         console[level](error);
       }
     }
-  }
-
-  public onUpdate(callback: (data: MarketDataUpdate) => void): void {
-    this.on('update', callback);
-  }
-
-  public onError(callback: (error: Error) => void): void {
-    this.on('error', callback);
-  }
-
-  public getStatus() {
-    return {
-      isSubscribed: this.isSubscribed,
-      marketIndex: this.marketIndex,
-      lastUpdateTime: this.lastUpdateTime,
-      updateCount: this.updateCount
-    };
   }
 }
