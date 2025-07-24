@@ -18,7 +18,7 @@ export const StrategyConfigSchema = z.object({
       overbought: z.number().min(0).max(100),
       oversold: z.number().min(0).max(100)
     })
-  }).optional(),
+  }),
   risk: z.object({
     maxPositionSize: z.number().min(0).max(1),
     stopLoss: z.number().min(0).max(1)

@@ -4,17 +4,19 @@ import { EventSubscriberManager } from './services/EventSubscriberManager';
 import fs from 'fs/promises';
 import path from 'path';
 import { parseStrategyConfig } from './utils/parseStrategyConfig';
+import { getAccountEquity } from './utils/getAccountEquity'
 import { SimpleCircuitBreaker } from './services/SimpleCircuitBreaker';
 import { DriftClient } from '@drift-labs/sdk';
 import { getCurrentPnl } from './services/PnlService';
 import { Connection, clusterApiUrl } from '@solana/web3.js';
 import { getWalletFromEnv } from './wallet/wallet';
 import { MeanReversionStrategy } from './strategies/MeanReversionStrategy';
-import { RiskEngine } from './services/RiskEngine';
+import { RiskEngine } from './engines/RiskEngine';
 import { PositionManager } from './services/PositionManager';
-import { DEFAULT_RISK_CONFIG } from './types/RiskConfig';
+import { DEFAULT_RISK_CONFIG } from './config/RiskConfig';
 import { StrategyConfig } from './strategies/StrategyTypes';
 import { PriceHistory } from './dataholders/PriceHistory';
+import { StrategyEngine } from './engines/StrategyEngine';
 
 async function main() {
   try {
@@ -24,8 +26,6 @@ async function main() {
       'confirmed'
     );
     const wallet = getWalletFromEnv();
-
-    const priceHistory = new PriceHistory(200);
 
     // Load strategy config
     const strategyConfig = await loadStrategyConfig();
@@ -48,8 +48,9 @@ async function main() {
     const volumeTracker = new VolumeTrackerService();
     const eventSubscriberManager = new EventSubscriberManager(driftClient);
 
-    // Initialize strategy, risk, position management, circuit breaker
-    const strategy = new MeanReversionStrategy(strategyConfig);
+    const strategyEngine = new StrategyEngine(strategyConfig);
+    const priceHistory = new PriceHistory(strategyConfig.entryRules.priceAboveMA.period);
+
     const riskEngine = new RiskEngine(driftClient, DEFAULT_RISK_CONFIG);
     const positionManager = new PositionManager(driftClient, riskEngine);
     const circuitBreaker = new SimpleCircuitBreaker(
@@ -58,11 +59,10 @@ async function main() {
 
     // Pipe MarketDataService price updates
     marketDataService.on('priceUpdate', async (data: MarketDataUpdate) => {
-      console.log('[DEBUG] Received price update:', data);
+      if (!data.markPrice) return;
 
-      if (data.markPrice !== undefined) {
-        priceHistory.add(data.markPrice);
-      }
+      priceHistory.add(data.markPrice);
+      const currentPrice = data.markPrice;
 
       try {
         const currentPnl = await getCurrentPnl(driftClient);
@@ -71,20 +71,14 @@ async function main() {
           return;
         }
 
-        const signal = strategy.generateSignal({
-          currentPrice: data.markPrice || 0,
-          closes: [],
-          highs: [],
-          lows: [],
-          volumes: [],
-          timestamp: data.timestamp,
-        });
+        const shouldBuy = strategyEngine.evaluate(priceHistory, currentPrice);
+        if (shouldBuy) {
+          const accountEquity = await getAccountEquity(driftClient);
+          const maxRiskAmount = accountEquity * strategyConfig.risk.maxPositionSize;
+          const size = maxRiskAmount / currentPrice;
 
-        if (!signal.direction) return;
-
-        if (signal.direction === 'LONG') {
-          await positionManager.openPosition(strategyConfig.pair, signal.size, 'LONG');
-        } else if (signal.direction === 'CLOSE') {
+          await positionManager.openPosition(strategyConfig.pair, size, 'LONG');
+        } else {
           await positionManager.closePosition(strategyConfig.pair);
         }
       } catch (err) {
@@ -101,7 +95,6 @@ async function main() {
     marketDataService.on('error', (err) => {
       console.error('[MarketDataService Error]', err);
     });
- 
     volumeTracker.on('error', (err) => {
       console.error('[VolumeTrackerService Error]', err);
     });

@@ -5,7 +5,7 @@ import {
   OptionalOrderParams
 } from '@drift-labs/sdk';
 import { BN } from 'bn.js';
-import { RiskEngine } from './RiskEngine';
+import { RiskEngine } from '../engines/RiskEngine';
 
 interface OpenPosition {
   market: string;
@@ -45,23 +45,35 @@ export class PositionManager {
       return false;
     }
 
+    const perpMarket = this.driftClient.getPerpMarketAccount(marketIndex);
+    if (!perpMarket) {
+      throw new Error(`Perp market not found for marketIndex=${marketIndex}`);
+    }
+    const orderStepSize = perpMarket.amm.orderStepSize.toNumber();
+    let baseAssetAmount = Math.ceil((size * 1e6) / orderStepSize) * orderStepSize;
+
+    if (baseAssetAmount < orderStepSize) {
+      console.warn(
+        `Computed baseAssetAmount (${baseAssetAmount}) is below order step size (${orderStepSize}). Skipping order.`
+      );
+      return false;
+    }
+
     try {
       const markPrice = options?.markPrice ?? this.getMarkPrice(marketIndex);
       const slippage = options?.slippage ?? 0.005;
+
       const orderPrice = direction === 'LONG'
         ? markPrice * (1 + slippage)
         : markPrice * (1 - slippage);
 
-      // Explicitly type the order parameters
       const orderParams: OptionalOrderParams = {
-        marketIndex, // Now guaranteed to be number
+        marketIndex,
         orderType: OrderType.LIMIT,
-        price: new BN(orderPrice * 1e6),
-        baseAssetAmount: new BN(size * 1e6),
-        direction: direction === 'LONG'
-          ? PositionDirection.LONG
-          : PositionDirection.SHORT,
-        reduceOnly: options?.reduceOnly ?? false
+        price: new BN(Math.round(orderPrice * 1e6)), // price decimals 6 assumed
+        baseAssetAmount: new BN(baseAssetAmount),
+        direction: direction === 'LONG' ? PositionDirection.LONG : PositionDirection.SHORT,
+        reduceOnly: options?.reduceOnly ?? false,
       };
 
       if (this.openPositions.has(market)) {
@@ -77,7 +89,7 @@ export class PositionManager {
         direction,
         entryPrice: orderPrice,
         orderId: txSig,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
       console.log(`Opened ${direction} position on ${market} at ${orderPrice} for size ${size}`);
 

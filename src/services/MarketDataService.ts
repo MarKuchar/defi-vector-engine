@@ -9,7 +9,7 @@ import {
 } from '@drift-labs/sdk';
 import { PublicKey, Connection, clusterApiUrl } from '@solana/web3.js';
 import EventEmitter from 'events';
-import { marketConfig } from '../config/marketConfig';
+import { marketConfig } from '../config/MarketConfig';
 import dotenv from 'dotenv';
 import { getWalletFromEnv } from '../wallet/wallet';
 import { Candle } from '../dataholders/Candle';

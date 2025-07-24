@@ -1,4 +1,4 @@
-import { RiskConfig, DEFAULT_RISK_CONFIG } from '../types/RiskConfig';
+import { RiskConfig, DEFAULT_RISK_CONFIG } from '../config/RiskConfig';
 import { DriftClient } from '@drift-labs/sdk';
 import { BN } from 'bn.js';
 

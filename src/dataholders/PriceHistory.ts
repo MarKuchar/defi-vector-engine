@@ -13,6 +13,11 @@ export class PriceHistory {
     }
   }
 
+  getMean() {
+    const sum = this.prices.reduce((a, b) => a + b, 0);
+    return this.prices.length > 0 ? sum / this.prices.length : 0;
+  }
+
   getAll() {
     return this.prices;
   }
