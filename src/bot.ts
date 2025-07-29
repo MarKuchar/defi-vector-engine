@@ -10,7 +10,6 @@ import { DriftClient } from '@drift-labs/sdk';
 import { getCurrentPnl } from './services/PnlService';
 import { Connection, clusterApiUrl } from '@solana/web3.js';
 import { getWalletFromEnv } from './wallet/wallet';
-import { MeanReversionStrategy } from './strategies/MeanReversionStrategy';
 import { RiskEngine } from './engines/RiskEngine';
 import { PositionManager } from './services/PositionManager';
 import { DEFAULT_RISK_CONFIG } from './config/RiskConfig';
@@ -57,32 +56,56 @@ async function main() {
       strategyConfig.circuitBreaker || { maxDailyLoss: -0.05, maxDrawdown: -0.1 }
     );
 
+    const healthMonitor = setInterval(() => {
+      console.log('Bot Health:', {
+        uptime: process.uptime(),
+        lastPriceUpdate: marketDataService.lastUpdateTime,
+        openPositions: positionManager.getAllPositions().map(p => ({
+          market: p.market,
+          size: p.size,
+          direction: p.direction
+        })),
+        memory: `${(process.memoryUsage().rss / 1024 / 1024).toFixed(2)}MB`
+      });
+    }, 300000);
+
     // Pipe MarketDataService price updates
     marketDataService.on('priceUpdate', async (data: MarketDataUpdate) => {
       if (!data.markPrice) return;
 
-      priceHistory.add(data.markPrice);
-      const currentPrice = data.markPrice;
-
       try {
-        const currentPnl = await getCurrentPnl(driftClient);
+        const currentPrice = data.markPrice;
+        priceHistory.add(currentPrice);
+
+        // Get current account state
+        const [currentPnl, equity] = await Promise.all([
+          getCurrentPnl(driftClient),
+          getAccountEquity(driftClient)
+        ]);
+
+        // Circuit breaker check
         if (!circuitBreaker.checkDailyPnL(currentPnl)) {
-          console.warn('Circuit breaker tripped - trading paused');
+          console.warn(`Circuit breaker tripped (PnL: ${currentPnl.toFixed(4)})`);
           return;
         }
 
+        // Strategy evaluation
         const shouldBuy = strategyEngine.evaluate(priceHistory, currentPrice);
-        if (shouldBuy) {
-          const accountEquity = await getAccountEquity(driftClient);
-          const maxRiskAmount = accountEquity * strategyConfig.risk.maxPositionSize;
-          const size = maxRiskAmount / currentPrice;
+        const size = (equity * strategyConfig.risk.maxPositionSize) / currentPrice;
 
+        if (process.env.PAPER_TRADING === 'true') {
+          console.log(`[PAPER] Would ${shouldBuy ? 'LONG' : 'CLOSE'} ${size.toFixed(4)} ${strategyConfig.pair} at ${currentPrice}`);
+          return;
+        }
+
+        // Execute trades
+        if (shouldBuy) {
           await positionManager.openPosition(strategyConfig.pair, size, 'LONG');
         } else {
           await positionManager.closePosition(strategyConfig.pair);
         }
       } catch (err) {
-        console.error('Trade execution error:', err);
+        console.error('Trade execution error:', err instanceof Error ? err.message : err);
       }
     });
 
@@ -106,10 +129,19 @@ async function main() {
     eventSubscriberManager.start();
 
     // Route OrderRecord events from EventSubscriberManager to VolumeTrackerService
-    eventSubscriberManager.on('OrderRecord', (event) => {
-      if (event.marketIndex === marketDataService.marketIndex) {
-        const amount = Math.abs(event.baseAssetAmount.toNumber()) / 1e6; // or marketConfig.volumeDivisor
+    eventSubscriberManager.on('orderAction', (record) => {
+      console.log(`Action: ${record.action} on market ${record.marketIndex}`);
+      console.log(`Filled: ${record.baseAmount} base assets`);
+      if (record.marketIndex === marketDataService.marketIndex) {
+        const amount = parseFloat(record.baseAmount || "0");
+        // TODO: or:         const amount = Math.abs(event.baseAssetAmount.toNumber()) / 1e6; // or marketConfig.volumeDivisor
         volumeTracker.addTrade(amount);
+      }
+    });
+
+    eventSubscriberManager.on('liquidation', (record) => {
+      if (record.bankrupt) {
+        console.log(`Bankrupt liquidation for ${record.liquidatee}`);
       }
     });
 
@@ -118,6 +150,7 @@ async function main() {
     // Graceful shutdown handling
     process.on('SIGINT', async () => {
       console.log('\nShutting down gracefully...');
+      clearInterval(healthMonitor);
       await marketDataService.close();
       volumeTracker.close();
       await driftClient.unsubscribe();

@@ -13,7 +13,7 @@ export class SimpleCircuitBreaker {
   }
 
   checkDailyPnL(pnl: number): boolean {
-    return pnl > this.maxDailyLoss;
+    return pnl >= this.maxDailyLoss; 
   }
 
   checkMaxDrawdown(drawdown: number): boolean {

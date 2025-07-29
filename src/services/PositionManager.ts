@@ -126,6 +126,10 @@ export class PositionManager {
     }
   }
 
+  public getAllPositions(): OpenPosition[] {
+    return [...this.openPositions.values()];
+  }
+
   async cancelOrder(market: string, orderId: number): Promise<string> {
     const marketIndex = this.getMarketIndex(market);
     if (marketIndex === undefined) throw new Error(`Unknown market: ${market}`);

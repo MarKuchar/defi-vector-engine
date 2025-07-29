@@ -37,7 +37,7 @@ export class MarketDataService extends EventEmitter {
   private eventSubscriber!: EventSubscriber;
   private isSubscribed = false;
   public marketIndex: number;
-  private lastUpdateTime = Date.now();
+  public lastUpdateTime = Date.now();
   private updateCount = 0;
   private logLevel: 'error' | 'warn' | 'info' | 'debug';
   private healthCheckInterval!: NodeJS.Timeout;
