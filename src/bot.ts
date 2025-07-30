@@ -4,7 +4,7 @@ import { EventSubscriberManager } from './services/EventSubscriberManager';
 import fs from 'fs/promises';
 import path from 'path';
 import { parseStrategyConfig } from './utils/parseStrategyConfig';
-import { getAccountEquity } from './utils/getAccountEquity'
+import { getAccountEquity } from './utils/getAccountEquity';
 import { SimpleCircuitBreaker } from './services/SimpleCircuitBreaker';
 import { DriftClient } from '@drift-labs/sdk';
 import { getCurrentPnl } from './services/PnlService';
@@ -15,7 +15,8 @@ import { PositionManager } from './services/PositionManager';
 import { DEFAULT_RISK_CONFIG } from './config/RiskConfig';
 import { StrategyConfig } from './strategies/StrategyTypes';
 import { PriceHistory } from './dataholders/PriceHistory';
-import { StrategyEngine } from './engines/StrategyEngine';
+import { createStrategy } from './strategies/StrategyFactory';
+import { BaseStrategy } from './strategies/BaseStrategy';
 
 async function main() {
   try {
@@ -47,7 +48,7 @@ async function main() {
     const volumeTracker = new VolumeTrackerService();
     const eventSubscriberManager = new EventSubscriberManager(driftClient);
 
-    const strategyEngine = new StrategyEngine(strategyConfig);
+    const strategy: BaseStrategy = createStrategy(strategyConfig);
     const priceHistory = new PriceHistory(strategyConfig.entryRules.priceAboveMA.period);
 
     const riskEngine = new RiskEngine(driftClient, DEFAULT_RISK_CONFIG);
@@ -89,19 +90,19 @@ async function main() {
           return;
         }
 
-        // Strategy evaluation
-        const shouldBuy = strategyEngine.evaluate(priceHistory, currentPrice);
-        const size = (equity * strategyConfig.risk.maxPositionSize) / currentPrice;
+        // Strategy evaluation returns TradeSignal
+        const signal = strategy.generateSignal({ currentPrice, closes: [], highs: [], lows: [], volumes: [], timestamp: Date.now() });
+        const size = (equity * (strategyConfig.risk?.maxPositionSize ?? 0)) / currentPrice;
 
         if (process.env.PAPER_TRADING === 'true') {
-          console.log(`[PAPER] Would ${shouldBuy ? 'LONG' : 'CLOSE'} ${size.toFixed(4)} ${strategyConfig.pair} at ${currentPrice}`);
+          console.log(`[PAPER] Would ${signal.direction ?? 'HOLD'} ${size.toFixed(4)} ${strategyConfig.pair} at ${currentPrice}`);
           return;
         }
 
-        // Execute trades
-        if (shouldBuy) {
+        // Execute trades based on signal direction
+        if (signal.direction === 'LONG') {
           await positionManager.openPosition(strategyConfig.pair, size, 'LONG');
-        } else {
+        } else if (signal.direction === 'CLOSE') {
           await positionManager.closePosition(strategyConfig.pair);
         }
       } catch (err) {
@@ -134,7 +135,6 @@ async function main() {
       console.log(`Filled: ${record.baseAmount} base assets`);
       if (record.marketIndex === marketDataService.marketIndex) {
         const amount = parseFloat(record.baseAmount || "0");
-        // TODO: or:         const amount = Math.abs(event.baseAssetAmount.toNumber()) / 1e6; // or marketConfig.volumeDivisor
         volumeTracker.addTrade(amount);
       }
     });
