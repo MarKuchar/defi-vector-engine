@@ -13,11 +13,19 @@ export class SimpleCircuitBreaker {
   }
 
   checkDailyPnL(pnl: number): boolean {
-    return pnl >= this.maxDailyLoss; 
+    const tripped = pnl < this.maxDailyLoss;
+    if (tripped) {
+      console.warn(`[Risk] Daily PnL limit breached: ${pnl.toFixed(2)} < ${this.maxDailyLoss}`);
+    }
+    return !tripped;
   }
 
   checkMaxDrawdown(drawdown: number): boolean {
-    return drawdown > this.maxDrawdown;
+    const tripped = drawdown < this.maxDrawdown;
+    if (tripped) {
+      console.warn(`[Risk] Max drawdown limit breached: ${drawdown.toFixed(2)} < ${this.maxDrawdown}`);
+    }
+    return !tripped;
   }
 
   reset() {

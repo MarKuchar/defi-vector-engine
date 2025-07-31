@@ -20,6 +20,7 @@
     "bn.js": "^5.2.2",
     "dotenv": "^16.5.0",
     "trading-signals": "^6.8.0",
+    "winston": "^3.17.0",
     "zod": "^3.25.41"
   },
   "devDependencies": {

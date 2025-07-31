@@ -1,6 +1,7 @@
 import { SMA, RSI } from 'trading-signals';
 import { BaseStrategy } from '../BaseStrategy';
 import type { StrategyConfig, MarketData, TradeSignal } from '../StrategyTypes';
+import logger from '../../utils/logger';
 
 export class MeanReversionStrategy implements BaseStrategy {
   private sma: SMA;
@@ -23,7 +24,6 @@ export class MeanReversionStrategy implements BaseStrategy {
 
   generateSignal(data: MarketData): TradeSignal {
     this.update(data);
-
     const currentSMA = this.sma.getResult();
     const currentRSI = this.rsi.getResult();
     const lastPrice = this.prices[this.prices.length - 1];
@@ -42,18 +42,20 @@ export class MeanReversionStrategy implements BaseStrategy {
     const stopLoss = lastPrice < numericSMA * 0.95;
 
     if (oversold && belowMA) {
+      logger.info('[Signal] Entering LONG: Oversold and price below MA');
       return {
         direction: 'LONG',
         size: this.config.risk.maxPositionSize,
         reason: 'Oversold and below MA'
       };
     } else if (takeProfit || stopLoss) {
+      logger.info(`[Signal] Exiting: ${stopLoss ? 'Stop Loss' : 'Take Profit'} triggered`);
       return {
         direction: 'CLOSE',
         size: 0,
         reason: stopLoss ? 'Stop loss triggered' : 'Take profit reached'
       };
-    }
+    }   
 
     return { direction: null, size: 0, reason: 'No trade signal' };
   }
