@@ -1,3 +1,5 @@
+import logger from "../utils/logger";
+
 interface CircuitBreakerConfig {
   maxDailyLoss?: number;
   maxDrawdown?: number;
@@ -15,7 +17,7 @@ export class SimpleCircuitBreaker {
   checkDailyPnL(pnl: number): boolean {
     const tripped = pnl < this.maxDailyLoss;
     if (tripped) {
-      console.warn(`[Risk] Daily PnL limit breached: ${pnl.toFixed(2)} < ${this.maxDailyLoss}`);
+      logger.warn(`[Risk] Daily PnL limit breached: ${pnl.toFixed(2)} < ${this.maxDailyLoss}`);
     }
     return !tripped;
   }
@@ -23,7 +25,7 @@ export class SimpleCircuitBreaker {
   checkMaxDrawdown(drawdown: number): boolean {
     const tripped = drawdown < this.maxDrawdown;
     if (tripped) {
-      console.warn(`[Risk] Max drawdown limit breached: ${drawdown.toFixed(2)} < ${this.maxDrawdown}`);
+      logger.warn(`[Risk] Max drawdown limit breached: ${drawdown.toFixed(2)} < ${this.maxDrawdown}`);
     }
     return !tripped;
   }

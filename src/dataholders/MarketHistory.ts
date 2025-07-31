@@ -1,7 +1,7 @@
 import { Candle } from "./Candle";
 import { PriceHistory } from "./PriceHistory";
 
-class MarketHistory {
+export class MarketHistory {
   closes = new PriceHistory(200);
   highs = new PriceHistory(200);
   lows = new PriceHistory(200);
