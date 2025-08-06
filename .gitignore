@@ -49,3 +49,5 @@ coverage/
 
 # Local-only files
 *.local
+
+*.log

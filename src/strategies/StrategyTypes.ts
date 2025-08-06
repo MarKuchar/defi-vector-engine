@@ -45,3 +45,7 @@ export interface TradeSignal {
   size: number;
   reason?: string;
 }
+
+export function parseStrategyConfig(json: unknown): StrategyConfig {
+  return StrategyConfigSchema.parse(json);
+}

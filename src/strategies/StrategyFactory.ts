@@ -1,6 +1,6 @@
 import { MeanReversionStrategy } from './specific/MeanReversionStrategy';
-import { StrategyConfig } from '../utils/parseStrategyConfig';
 import { BaseStrategy } from './BaseStrategy';
+import { StrategyConfig } from './StrategyTypes';
 
 export function createStrategy(config: StrategyConfig): BaseStrategy {
   switch (config.strategy) {
