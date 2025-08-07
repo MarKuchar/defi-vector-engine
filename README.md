@@ -1,7 +1,4 @@
 # Drift Trading Bot
-[![Node.js CI](https://github.com/yourusername/drift-trading-bot/actions/workflows/node.js.yml/badge.svg)](https://github.com/yourusername/drift-trading-bot/actions/workflows/node.js.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 Automated market-making and mean-reversion trading bot for Solana's Drift Protocol.
 
 ## 📋 Prerequisites
@@ -23,7 +20,6 @@ Automated market-making and mean-reversion trading bot for Solana's Drift Protoc
 
 ## 🛠 Installation
 
-```bash
 # Clone repository
 git clone https://github.com/yourusername/drift-trading-bot.git
 cd drift-trading-bot
@@ -122,8 +118,6 @@ Each command can be executed using `npx ts-node`:
 ---
 
 ## Solana SPL Token CLI Reference
-
-```bash
 export RPC_ENDPOINT=https://api.devnet.solana.com
 export OWNER_PUBLIC_KEY=<YOUR_OWNER_PUBLIC_KEY>
 export MINT=<YOUR_TOKEN_MINT_ADDRESS>
