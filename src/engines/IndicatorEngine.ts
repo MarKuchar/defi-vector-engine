@@ -19,6 +19,14 @@ export class IndicatorEngine {
     return this.indicators[name]?.getValue() ?? null;
   }
 
+  getValues(): Record<string, number | null> {
+    const snapshot: Record<string, number | null> = {};
+    for (const name in this.indicators) {
+      snapshot[name] = this.indicators[name].getValue();
+    }
+    return snapshot;
+  }
+
   reset(): void {
     Object.values(this.indicators).forEach(indicator => indicator.reset());
   }

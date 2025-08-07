@@ -109,7 +109,9 @@ export class TradingBot {
   }
 
   private async onPriceUpdate(data: MarketDataUpdate): Promise<void> {
-    if (!data.markPrice) return;
+    if (!data.markPrice) {
+      return;
+    }
 
     try {
       const currentPrice = data.markPrice;
@@ -126,6 +128,8 @@ export class TradingBot {
         return;
       }
 
+      const snapshot = this.indicatorEngine.getValues();
+
       const signal = this.strategy.generateSignal({
         currentPrice,
         closes: [],
@@ -133,6 +137,7 @@ export class TradingBot {
         lows: [],
         volumes: [],
         timestamp: Date.now(),
+        indicators: snapshot
       });
 
       const size = (equity * (this.strategyConfig.risk?.maxPositionSize ?? 0)) / currentPrice;

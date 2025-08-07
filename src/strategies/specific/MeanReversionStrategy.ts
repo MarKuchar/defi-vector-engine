@@ -24,38 +24,39 @@ export class MeanReversionStrategy implements BaseStrategy {
 
   generateSignal(data: MarketData): TradeSignal {
     this.update(data);
-    const currentSMA = this.sma.getResult();
-    const currentRSI = this.rsi.getResult();
-    const lastPrice = this.prices[this.prices.length - 1];
 
-    if (!currentSMA || !currentRSI) {
-      return { direction: null, size: 0, reason: 'Indicators not ready' };
+    const { indicators, currentPrice: price } = data;
+    const sma = indicators?.['SMA_50'];
+    const rsi = indicators?.['RSI_14'];
+
+    if (sma == null || rsi == null) {
+      return {
+        direction: null,
+        size: 0,
+        reason: 'Missing indicator data',
+      };
     }
 
-    const numericRSI = currentRSI.toNumber();
-    const numericSMA = currentSMA.toNumber();
+    const oversold = rsi < (this.config.entryRules?.rsiConditions.oversold ?? 30);
+    const belowMA = price < sma * (this.config.entryRules?.priceAboveMA.threshold ?? 1);
 
-    const oversold = numericRSI < (this.config.entryRules?.rsiConditions.oversold || 30);
-    const belowMA = lastPrice < numericSMA * (this.config.entryRules?.priceAboveMA.threshold || 1);
-
-    const takeProfit = numericRSI > 50;
-    const stopLoss = lastPrice < numericSMA * 0.95;
+    const stopLoss = price < sma * 0.95;
+    const takeProfit = rsi > 50;
 
     if (oversold && belowMA) {
       logger.info('[Signal] Entering LONG: Oversold and price below MA');
       return {
         direction: 'LONG',
         size: this.config.risk.maxPositionSize,
-        reason: 'Oversold and below MA'
+        reason: 'Oversold and below MA',
       };
-    } else if (takeProfit || stopLoss) {
-      logger.info(`[Signal] Exiting: ${stopLoss ? 'Stop Loss' : 'Take Profit'} triggered`);
-      return {
-        direction: 'CLOSE',
-        size: 0,
-        reason: stopLoss ? 'Stop loss triggered' : 'Take profit reached'
-      };
-    }   
+    }
+
+    if (takeProfit || stopLoss) {
+      const reason = stopLoss ? 'Stop loss triggered' : 'Take profit reached';
+      logger.info(`[Signal] Exiting: ${reason}`);
+      return { direction: 'CLOSE', size: 0, reason };
+    }
 
     return { direction: null, size: 0, reason: 'No trade signal' };
   }
