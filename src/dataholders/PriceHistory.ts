@@ -21,4 +21,8 @@ export class PriceHistory {
   getAll() {
     return this.prices;
   }
+
+  get length() {
+    return this.prices.length;
+  }
 }

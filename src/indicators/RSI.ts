@@ -1,3 +1,4 @@
+import logger from "../utils/logger";
 import { Indicator } from "./interface/Indicator";
 
 export class RSI implements Indicator {
@@ -17,12 +18,15 @@ export class RSI implements Indicator {
   update(value: number): void {
     if (this.prevValue === null) {
       this.prevValue = value;
+      logger.info(`[RSI] Initial value set: ${value}`);
       return;
     }
 
     const change = value - this.prevValue;
     const gain = change > 0 ? change : 0;
     const loss = change < 0 ? -change : 0;
+
+    logger.info(`[RSI] Price: ${value}, Change: ${change.toFixed(6)}, Gain: ${gain.toFixed(6)}, Loss: ${loss.toFixed(6)}`);
 
     if (this.gains.length < this.period) {
       this.gains.push(gain);
@@ -31,12 +35,13 @@ export class RSI implements Indicator {
         this.avgGain = this.gains.reduce((a, b) => a + b, 0) / this.period;
         this.avgLoss = this.losses.reduce((a, b) => a + b, 0) / this.period;
         this.calculateRSI();
+        logger.info(`[RSI] Initial avgGain: ${this.avgGain.toFixed(6)}, avgLoss: ${this.avgLoss.toFixed(6)}, RSI: ${this.currentRSI}`);
       }
     } else {
-      // Wilder's smoothing
       this.avgGain = ((this.avgGain ?? 0) * (this.period - 1) + gain) / this.period;
       this.avgLoss = ((this.avgLoss ?? 0) * (this.period - 1) + loss) / this.period;
       this.calculateRSI();
+      logger.info(`[RSI] Updated avgGain: ${this.avgGain.toFixed(6)}, avgLoss: ${this.avgLoss.toFixed(6)}, RSI: ${this.currentRSI}`);
     }
 
     this.prevValue = value;

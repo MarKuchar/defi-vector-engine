@@ -16,6 +16,7 @@ import { BaseStrategy } from './strategies/BaseStrategy';
 import { IndicatorEngine } from './engines/IndicatorEngine';
 import { createDefaultIndicators } from './utils/createDefaultIndicators';
 import { createStrategy } from './strategies/StrategyFactory';
+import logger from './utils/logger';
 
 export class TradingBot {
   private connection = new Connection(
@@ -67,11 +68,11 @@ export class TradingBot {
     // Hook event handlers
     this.marketDataService.on('priceUpdate', this.onPriceUpdate.bind(this));
     this.volumeTracker.on('volumeUpdate', update =>
-      console.log(`Rolling 24h Volume: ${update.volume24h.toFixed(2)}`)
+      logger.info(`Rolling 24h Volume: ${update.volume24h.toFixed(2)}`)
     );
 
     this.eventSubscriberManager.on('orderAction', record => {
-      console.log(`Action: ${record.action} on market ${record.marketIndex}`);
+      logger.info(`Action: ${record.action} on market ${record.marketIndex}`);
       if (record.marketIndex === this.marketDataService.marketIndex) {
         const amount = parseFloat(record.baseAmount ?? '0');
         this.volumeTracker.addTrade(amount);
@@ -80,13 +81,13 @@ export class TradingBot {
 
     this.eventSubscriberManager.on('liquidation', record => {
       if (record.bankrupt) {
-        console.log(`Bankrupt liquidation for ${record.liquidatee}`);
+        logger.info(`Bankrupt liquidation for ${record.liquidatee}`);
       }
     });
 
     // Health monitor
     this.healthMonitor = setInterval(() => {
-      console.log('Bot Health:', {
+      logger.info('Bot Health:', {
         uptime: process.uptime(),
         lastPriceUpdate: this.marketDataService.lastUpdateTime,
         openPositions: this.positionManager.getAllPositions().map(p => ({
@@ -98,7 +99,7 @@ export class TradingBot {
       });
     }, 300000);
 
-    console.log('Trading bot started successfully');
+    logger.info('Trading bot started successfully');
   }
 
   async stop(): Promise<void> {
@@ -110,6 +111,7 @@ export class TradingBot {
 
   private async onPriceUpdate(data: MarketDataUpdate): Promise<void> {
     if (!data.markPrice) {
+      logger.warn('Price update received without markPrice, skipping...');
       return;
     }
 
@@ -123,8 +125,10 @@ export class TradingBot {
         getAccountEquity(this.driftClient),
       ]);
 
+      logger.info(`[PRICE UPDATE] ${JSON.stringify({ currentPrice, pnl: currentPnl.toFixed(6), equity: equity.toFixed(6), priceHistoryLength: this.priceHistory.length, indicators: this.indicatorEngine.getValues() })}`);
+
       if (!this.circuitBreaker.checkDailyPnL(currentPnl)) {
-        console.warn(`Circuit breaker tripped (PnL: ${currentPnl.toFixed(4)})`);
+        logger.warn(`Circuit breaker tripped (PnL: ${currentPnl.toFixed(6)}) — skipping trade`);
         return;
       }
 
@@ -137,23 +141,29 @@ export class TradingBot {
         lows: [],
         volumes: [],
         timestamp: Date.now(),
-        indicators: snapshot
+        indicators: snapshot,
       });
+
+      logger.info('Generated Signal:', signal);
 
       const size = (equity * (this.strategyConfig.risk?.maxPositionSize ?? 0)) / currentPrice;
 
       if (process.env.PAPER_TRADING === 'true') {
-        console.log(`[PAPER] Would ${signal.direction ?? 'HOLD'} ${size.toFixed(4)} ${this.strategyConfig.pair} at ${currentPrice}`);
+        logger.info(`[PAPER] Would ${signal.direction ?? 'HOLD'} ${size.toFixed(4)} ${this.strategyConfig.pair} at ${currentPrice}`);
         return;
       }
 
       if (signal.direction === 'LONG') {
+        logger.info(`Opening LONG position: size=${size.toFixed(4)} at price=${currentPrice}`);
         await this.positionManager.openPosition(this.strategyConfig.pair, size, 'LONG');
       } else if (signal.direction === 'CLOSE') {
+        logger.info('Closing position');
         await this.positionManager.closePosition(this.strategyConfig.pair);
+      } else {
+        logger.debug('No trading action taken');
       }
     } catch (err) {
-      console.error('Trade execution error:', err instanceof Error ? err.message : err);
+      logger.error('Trade execution error:', err instanceof Error ? err.message : err);
     }
   }
 }

@@ -13,13 +13,16 @@ export async function getCurrentPnl(driftClient: DriftClient): Promise<number> {
   const positions = user.getUserAccount().perpPositions;
   let totalPnl = 0;
 
+  const SCALE = 1e6; // adjust as needed based on protocol docs
+
   for (const pos of positions) {
     if (pos.baseAssetAmount.isZero()) continue;
 
     try {
       const marketIndex = pos.marketIndex;
       const pnl: BN = user.getUnrealizedPNL(true, marketIndex);
-      totalPnl += pnl.toNumber();
+      totalPnl += pnl.toNumber() / SCALE;
+      console.info(`Total PNL:`, totalPnl);
     } catch (err) {
       console.warn(`Failed to get PnL for market ${pos.marketIndex.toString()}:`, err);
     }

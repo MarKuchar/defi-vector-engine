@@ -30,6 +30,7 @@ export class MeanReversionStrategy implements BaseStrategy {
     const rsi = indicators?.['RSI_14'];
 
     if (sma == null || rsi == null) {
+      logger.warn('Indicators missing in generateSignal', { sma, rsi });
       return {
         direction: null,
         size: 0,
@@ -42,6 +43,16 @@ export class MeanReversionStrategy implements BaseStrategy {
 
     const stopLoss = price < sma * 0.95;
     const takeProfit = rsi > 50;
+
+    logger.debug('Signal computation:', {
+      price,
+      sma,
+      rsi,
+      oversold,
+      belowMA,
+      stopLoss,
+      takeProfit,
+    });
 
     if (oversold && belowMA) {
       logger.info('[Signal] Entering LONG: Oversold and price below MA');
