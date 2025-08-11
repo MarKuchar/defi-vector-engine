@@ -125,14 +125,14 @@ export class TradingBot {
         getAccountEquity(this.driftClient),
       ]);
 
-      logger.info(`[PRICE UPDATE] ${JSON.stringify({ currentPrice, pnl: currentPnl.toFixed(6), equity: equity.toFixed(6), priceHistoryLength: this.priceHistory.length, indicators: this.indicatorEngine.getValues() })}`);
+      const detailedIndicators = this.indicatorEngine.getValuesDetailed();
+
+      logger.info(`[PRICE UPDATE] ${JSON.stringify({ currentPrice, pnl: currentPnl.toFixed(6), equity: equity.toFixed(6), priceHistoryLength: this.priceHistory.length, indicators: detailedIndicators })}`);
 
       if (!this.circuitBreaker.checkDailyPnL(currentPnl)) {
         logger.warn(`Circuit breaker tripped (PnL: ${currentPnl.toFixed(6)}) — skipping trade`);
         return;
       }
-
-      const snapshot = this.indicatorEngine.getValues();
 
       const signal = this.strategy.generateSignal({
         currentPrice,
@@ -141,7 +141,7 @@ export class TradingBot {
         lows: [],
         volumes: [],
         timestamp: Date.now(),
-        indicators: snapshot,
+        indicators: detailedIndicators,
       });
 
       logger.info('Generated Signal:', signal);

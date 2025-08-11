@@ -1,6 +1,7 @@
 import { SMA, RSI } from 'trading-signals';
 import { BaseStrategy } from '../BaseStrategy';
 import type { StrategyConfig, MarketData, TradeSignal } from '../StrategyTypes';
+import { isOversold, isBelowMA, bollingerTouch, emaCrossed } from '../../utils/indicatorChecks';
 import logger from '../../utils/logger';
 
 export class MeanReversionStrategy implements BaseStrategy {
@@ -24,49 +25,45 @@ export class MeanReversionStrategy implements BaseStrategy {
 
   generateSignal(data: MarketData): TradeSignal {
     this.update(data);
-
     const { indicators, currentPrice: price } = data;
-    const sma = indicators?.['SMA_50'];
-    const rsi = indicators?.['RSI_14'];
 
-    if (sma == null || rsi == null) {
-      logger.warn('Indicators missing in generateSignal', { sma, rsi });
-      return {
-        direction: null,
-        size: 0,
-        reason: 'Missing indicator data',
-      };
+    const rsi = indicators?.rsi?.value ?? null;
+    const sma = indicators?.SMA_50 ?? null;
+    const emaFast = indicators?.ema?.short ?? null;
+    const emaSlow = indicators?.ema?.long ?? null;
+    const bbUpper = indicators?.bb?.upper ?? null;
+    const bbLower = indicators?.bb?.lower ?? null;
+
+    if (sma === null || rsi === null) {
+      logger.warn('Missing SMA or RSI in generateSignal', { sma, rsi });
+      return { direction: null, size: 0, reason: 'Missing indicator data' };
     }
 
-    const oversold = rsi < (this.config.entryRules?.rsiConditions.oversold ?? 30);
-    const belowMA = price < sma * (this.config.entryRules?.priceAboveMA.threshold ?? 1);
+    const oversold = isOversold(rsi);
+    const belowMA = isBelowMA(price, sma);
 
-    const stopLoss = price < sma * 0.95;
-    const takeProfit = rsi > 50;
+    let emaSignal: 'bullish' | 'bearish' | null = null;
+    if (emaFast !== null && emaSlow !== null) {
+      emaSignal = emaCrossed(emaFast, emaSlow);
+    }
 
-    logger.debug('Signal computation:', {
-      price,
-      sma,
-      rsi,
-      oversold,
-      belowMA,
-      stopLoss,
-      takeProfit,
+    let bbTouch: 'upper' | 'lower' | null = null;
+    if (bbUpper !== null && bbLower !== null) {
+      bbTouch = bollingerTouch(price, bbUpper, bbLower);
+    }
+
+    logger.debug('Signal computation', {
+      price, sma, rsi, oversold, belowMA, emaFast, emaSlow, emaSignal, bbUpper, bbLower, bbTouch,
     });
 
     if (oversold && belowMA) {
-      logger.info('[Signal] Entering LONG: Oversold and price below MA');
-      return {
-        direction: 'LONG',
-        size: this.config.risk.maxPositionSize,
-        reason: 'Oversold and below MA',
-      };
+      logger.info('[Signal] Entering LONG: Oversold & below SMA');
+      return { direction: 'LONG', size: this.config.risk.maxPositionSize, reason: 'Oversold & below SMA' };
     }
 
-    if (takeProfit || stopLoss) {
-      const reason = stopLoss ? 'Stop loss triggered' : 'Take profit reached';
-      logger.info(`[Signal] Exiting: ${reason}`);
-      return { direction: 'CLOSE', size: 0, reason };
+    if (emaSignal === 'bearish' || bbTouch === 'upper') {
+      logger.info('[Signal] Entering SHORT: EMA bearish or BB upper touch');
+      return { direction: 'SHORT', size: this.config.risk.maxPositionSize, reason: 'EMA bearish or BB upper touch' };
     }
 
     return { direction: null, size: 0, reason: 'No trade signal' };

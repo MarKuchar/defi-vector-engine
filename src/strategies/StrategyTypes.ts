@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IndicatorSnapshot } from '../indicators/interface/IndicatorSnapshot';
+import { DetailedIndicatorSnapshot } from '../indicators/interface/DetailedIndicatorSnapshot';
 
 export const StrategyConfigSchema = z.object({
   strategy: z.string(),
@@ -39,7 +39,7 @@ export interface MarketData {
   lows: number[];
   volumes: number[];
   timestamp: number;
-  indicators?: IndicatorSnapshot;
+  indicators?: DetailedIndicatorSnapshot;
 }
 
 export interface TradeSignal {
