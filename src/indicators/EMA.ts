@@ -5,6 +5,7 @@ export class EMA implements Indicator {
   private period: number;
   private multiplier: number;
   private ema: number | null = null;
+  private valuesCount = 0;
 
   constructor(period: number) {
     this.period = period;
@@ -12,18 +13,24 @@ export class EMA implements Indicator {
   }
 
   update(value: number): void {
+    this.valuesCount++;
     if (this.ema === null) {
-      this.ema = value; // Initialize EMA with first value
+      this.ema = value;
     } else {
       this.ema = (value - this.ema) * this.multiplier + this.ema;
     }
   }
 
-  getValue(): number | null {
-    return this.ema;
+  isReady(): boolean {
+    return this.valuesCount >= this.period;
+  }
+
+  getSnapshot(): { currentValue: number | null } {
+    return { currentValue: this.ema };
   }
 
   reset(): void {
     this.ema = null;
+    this.valuesCount = 0;
   }
 }

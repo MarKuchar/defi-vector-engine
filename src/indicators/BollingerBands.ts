@@ -58,6 +58,18 @@ export class BollingerBands implements Indicator {
     return this._lower;
   }
 
+  isReady(): boolean {
+    return this.prices.length >= this.period && this.sma.isReady();
+  }
+
+  getSnapshot() {
+    return {
+      upper: this.getUpperBand(),
+      middle: this.getValue(),
+      lower: this.getLowerBand(),
+    };
+  }
+
   reset(): void {
     this.prices = [];
     this.sma.reset();

@@ -1,6 +1,7 @@
 export interface Indicator {
   name: string;
   update(value: number): void;
-  getValue(): number | null;
+  isReady(): boolean;
+  getSnapshot(): Record<string, number | null>;
   reset(): void;
 }

@@ -64,6 +64,19 @@ export class RSI implements Indicator {
     return this.currentRSI;
   }
 
+  isReady(): boolean {
+    return this.gains.length === this.period && this.avgGain !== null && this.avgLoss !== null;
+  }
+
+  getSnapshot() {
+    const value = this.getValue();
+    return {
+      value,
+      overbought: value !== null && value > 70 ? 1 : 0,
+      oversold: value !== null && value < 30 ? 1 : 0
+    };
+  }
+
   reset(): void {
     this.gains = [];
     this.losses = [];

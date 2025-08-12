@@ -1,4 +1,3 @@
-import { BollingerBands } from '../indicators/BollingerBands';
 import { Indicator } from '../indicators/interface/Indicator';
 
 export class IndicatorEngine {
@@ -16,45 +15,16 @@ export class IndicatorEngine {
     }
   }
 
-  getIndicatorValue(name: string): number | null {
-    return this.indicators[name]?.getValue() ?? null;
+  isReady(): boolean {
+    return Object.values(this.indicators).every(indicator => indicator.isReady());
   }
 
-  getValues(): Record<string, number | null> {
-    const snapshot: Record<string, number | null> = {};
-    for (const name in this.indicators) {
-      snapshot[name] = this.indicators[name].getValue();
+  getValuesDetailed(): Record<string, Record<string, number | null>> {
+    const snapshot: Record<string, Record<string, number | null>> = {};
+    for (const [name, indicator] of Object.entries(this.indicators)) {
+      snapshot[name] = indicator.getSnapshot();
     }
     return snapshot;
-  }
-
-  getValuesDetailed(): Record<string, any> {
-    const bbIndicator = this.indicators['BollingerBands'];
-    let upper;
-    let lower;
-    if (bbIndicator && 'getUpperBand' in bbIndicator) {
-      upper = (bbIndicator as BollingerBands).getUpperBand();
-      lower = (bbIndicator as BollingerBands).getLowerBand();
-    }
-
-    return {
-      rsi: {
-        value: this.indicators['RSI']?.getValue(),
-        overbought: (this.indicators['RSI']?.getValue() ?? 0) > 70,
-        oversold: (this.indicators['RSI']?.getValue() ?? 0) < 30,
-      },
-      ema: {
-        short: this.indicators['EMA_12']?.getValue(),
-        long: this.indicators['EMA_26']?.getValue(),
-        crossover: (this.indicators['EMA_12']?.getValue() ?? 0) > (this.indicators['EMA_26']?.getValue() ?? 0),
-      },
-      bb: {
-        upper: upper,
-        middle: this.indicators['BollingerBands']?.getValue(),
-        lower: lower,
-      },
-      // Add other indicators here as needed
-    };
   }
 
   reset(): void {

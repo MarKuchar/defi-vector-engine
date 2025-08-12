@@ -18,11 +18,24 @@ export class SMA implements Indicator {
     }
   }
 
+  isReady(): boolean {
+    return this.values.length >= this.period;
+  }
+
   getValue(): number | null {
     if (this.values.length < this.period) {
       return null;
     }
     return this.sum / this.period;
+  }
+
+  getSnapshot(): any {
+    return {
+      type: "SMA",
+      period: this.period,
+      values: [...this.values],
+      currentValue: this.getValue()
+    };
   }
 
   reset(): void {

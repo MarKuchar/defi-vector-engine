@@ -120,6 +120,11 @@ export class TradingBot {
       this.indicatorEngine.update(currentPrice);
       this.priceHistory.add(currentPrice);
 
+      if (!this.indicatorEngine.isReady()) {
+        logger.info('Waiting for indicators to warm up before generating signals...');
+        return;
+      }
+
       const [currentPnl, equity] = await Promise.all([
         getCurrentPnl(this.driftClient),
         getAccountEquity(this.driftClient),
