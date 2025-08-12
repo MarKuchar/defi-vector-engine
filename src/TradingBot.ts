@@ -39,6 +39,8 @@ export class TradingBot {
 
   private healthMonitor?: NodeJS.Timeout;
 
+  private hasLoggedWarmup = false;
+
   constructor(private strategyConfig: StrategyConfig) {
     this.driftClient = new DriftClient({
       connection: this.connection,
@@ -120,10 +122,15 @@ export class TradingBot {
       this.indicatorEngine.update(currentPrice);
       this.priceHistory.add(currentPrice);
 
+      // WARMUP 
       if (!this.indicatorEngine.isReady()) {
-        logger.info('Waiting for indicators to warm up before generating signals...');
+        if (!this.hasLoggedWarmup) {
+          logger.info('Waiting for indicators to warm up before generating signals...');
+          this.hasLoggedWarmup = true;
+        }
         return;
       }
+      this.hasLoggedWarmup = false;
 
       const [currentPnl, equity] = await Promise.all([
         getCurrentPnl(this.driftClient),
@@ -132,7 +139,7 @@ export class TradingBot {
 
       const detailedIndicators = this.indicatorEngine.getValuesDetailed();
 
-      logger.info(`[PRICE UPDATE] ${JSON.stringify({ currentPrice, pnl: currentPnl.toFixed(6), equity: equity.toFixed(6), priceHistoryLength: this.priceHistory.length, indicators: detailedIndicators })}`);
+      // logger.info(`[PRICE UPDATE] ${JSON.stringify({ currentPrice, pnl: currentPnl.toFixed(6), equity: equity.toFixed(6), priceHistoryLength: this.priceHistory.length, indicators: detailedIndicators })}`);
 
       if (!this.circuitBreaker.checkDailyPnL(currentPnl)) {
         logger.warn(`Circuit breaker tripped (PnL: ${currentPnl.toFixed(6)}) — skipping trade`);

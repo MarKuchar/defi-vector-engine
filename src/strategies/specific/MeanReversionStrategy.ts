@@ -52,10 +52,6 @@ export class MeanReversionStrategy implements BaseStrategy {
       bbTouch = bollingerTouch(price, bbUpper, bbLower);
     }
 
-    logger.debug('Signal computation', {
-      price, sma, rsi, oversold, belowMA, emaFast, emaSlow, emaSignal, bbUpper, bbLower, bbTouch,
-    });
-
     if (oversold && belowMA) {
       logger.info('[Signal] Entering LONG: Oversold & below SMA');
       return { direction: 'LONG', size: this.config.risk.maxPositionSize, reason: 'Oversold & below SMA' };
@@ -65,6 +61,10 @@ export class MeanReversionStrategy implements BaseStrategy {
       logger.info('[Signal] Entering SHORT: EMA bearish or BB upper touch');
       return { direction: 'SHORT', size: this.config.risk.maxPositionSize, reason: 'EMA bearish or BB upper touch' };
     }
+
+    logger.debug('Signal computation', {
+      price, sma, rsi, oversold, belowMA, emaFast, emaSlow, emaSignal, bbUpper, bbLower, bbTouch,
+    });
 
     return { direction: null, size: 0, reason: 'No trade signal' };
   }
