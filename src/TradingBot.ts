@@ -121,6 +121,7 @@ export class TradingBot {
       const currentPrice = data.markPrice;
       this.indicatorEngine.update(currentPrice);
       this.priceHistory.add(currentPrice);
+      logger.debug(`PriceHistory (last 5): ${this.priceHistory.getLastN(5).join(', ')}`);
 
       // WARMUP 
       if (!this.indicatorEngine.isReady()) {

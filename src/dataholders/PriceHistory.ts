@@ -22,6 +22,10 @@ export class PriceHistory {
     return this.prices;
   }
 
+  getLastN(n: number): number[] {
+    return this.prices.slice(-n);
+  }
+
   get length() {
     return this.prices.length;
   }

@@ -35,7 +35,7 @@ export class MeanReversionStrategy implements BaseStrategy {
     const bbLower = indicators?.bb?.lower ?? null;
 
     if (sma === null || rsi === null) {
-      logger.warn('Missing SMA or RSI in generateSignal', { sma, rsi });
+      // logger.warn('Missing SMA or RSI in generateSignal', { sma, rsi });
       return { direction: null, size: 0, reason: 'Missing indicator data' };
     }
 

@@ -6,6 +6,7 @@ import {
 } from '@drift-labs/sdk';
 import { BN } from 'bn.js';
 import { RiskEngine } from '../engines/RiskEngine';
+import logger from '../utils/logger';
 
 interface OpenPosition {
   market: string;
@@ -41,7 +42,7 @@ export class PositionManager {
   ): Promise<boolean> {
     const marketIndex = this.getMarketIndex(market);
     if (marketIndex === undefined) {
-      console.error(`Unknown market: ${market}`);
+      logger.error(`Unknown market: ${market}`);
       return false;
     }
 
@@ -53,7 +54,7 @@ export class PositionManager {
     let baseAssetAmount = Math.ceil((size * 1e6) / orderStepSize) * orderStepSize;
 
     if (baseAssetAmount < orderStepSize) {
-      console.warn(
+      logger.warn(
         `Computed baseAssetAmount (${baseAssetAmount}) is below order step size (${orderStepSize}). Skipping order.`
       );
       return false;
@@ -77,7 +78,7 @@ export class PositionManager {
       };
 
       if (this.openPositions.has(market)) {
-        console.warn(`Position already open for ${market}`);
+        logger.warn(`Position already open for ${market}`);
         return false;
       }
 
@@ -91,11 +92,11 @@ export class PositionManager {
         orderId: txSig,
         timestamp: Date.now(),
       });
-      console.log(`Opened ${direction} position on ${market} at ${orderPrice} for size ${size}`);
+      logger.info(`Opened ${direction} position on ${market} at ${orderPrice} for size ${size}`);
 
       return true;
     } catch (err) {
-      console.error(`Failed to open ${direction} position on ${market}:`, err);
+      logger.error(`Failed to open ${direction} position on ${market}:`, err);
       return false;
     }
   }
@@ -121,7 +122,7 @@ export class PositionManager {
       this.openPositions.delete(market);
       return true;
     } catch (err) {
-      console.error(`Failed to close position on ${market}:`, err);
+      logger.error(`Failed to close position on ${market}:`, err);
       return false;
     }
   }
@@ -142,7 +143,7 @@ export class PositionManager {
       );
       return txSig;
     } catch (err) {
-      console.error(`Failed to cancel order ${orderId} on ${market}:`, err);
+      logger.error(`Failed to cancel order ${orderId} on ${market}:`, err);
       throw err;
     }
   }

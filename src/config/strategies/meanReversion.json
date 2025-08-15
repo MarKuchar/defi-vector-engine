@@ -7,7 +7,7 @@
       "threshold": 1.5
     },
     "rsiConditions": {
-      "period": 14,
+      "period": 5,
       "overbought": 70,
       "oversold": 30
     }
@@ -17,7 +17,7 @@
     "stopLoss": 0.05
   },
   "circuitBreaker": {
-    "maxDailyLoss": -0.05,
-    "maxDrawdown": -0.1
+    "maxDailyLoss": -1000,
+    "maxDrawdown": -1.0
   }
 }
