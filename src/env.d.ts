@@ -21,5 +21,6 @@ declare namespace NodeJS {
     NODE_ENV?: string;
     LOG_LEVEL?: 'error' | 'warn' | 'info' | 'debug';
     PAPER_TRADING?: string;
+    BACKTEST?: string;
   }
 }
