@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import fetch from 'node-fetch';
-import { Candle } from '../../dataholders/Candle';  // update path if needed
+import { Candle } from '../../dataholders/Candle';
 
 // Fetch SOL/USDT klines from Binance
 async function fetchBinanceSOL(
@@ -30,7 +30,7 @@ async function fetchBinanceSOL(
     throw new Error(`Error fetching SOL klines: ${res.status} ${res.statusText}`);
   }
 
-  const data = (await res.json()) as any[];  // type assertion
+  const data = (await res.json()) as any[];
 
   const candles: Candle[] = data.map((d: any[]): Candle => ({
     timestamp: d[0],
@@ -47,10 +47,12 @@ async function fetchBinanceSOL(
 
 async function main() {
   try {
-    // e.g. – fetch last 1000 1-hour candles
-    const candles = await fetchBinanceSOL('1h', 1000);
+    const interval = '1m'; 
+    const limit = 5000; // Corrected to comply with Binance API limits (max 1000 candles per request)
 
-    const outPath = path.resolve(__dirname, '../../data/historical_sol.json');
+    const candles = await fetchBinanceSOL(interval, limit);
+
+    const outPath = path.resolve(__dirname, `../../data/historical_sol_${interval}.json`);
     await fs.writeFile(outPath, JSON.stringify(candles, null, 2));
     console.log(`✅ Saved ${candles.length} SOL candles to ${outPath}`);
   } catch (err) {

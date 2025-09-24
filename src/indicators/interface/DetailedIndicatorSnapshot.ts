@@ -17,9 +17,13 @@ export interface BBIndicator {
 }
 
 export interface DetailedIndicatorSnapshot {
-  rsi?: RSIIndicator;
-  ema?: EMAIndicator;
-  bb?: BBIndicator;
-  SMA_50?: number | null;
+  RSI?: RSIIndicator;
+  EMA?: EMAIndicator;
+  BB?: BBIndicator;
+  SMA?: {
+    type: string;
+    period: number;
+    currentValue: number | null;
+  };
   // add other indicators as needed
 }

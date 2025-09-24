@@ -10,7 +10,7 @@ async function main() {
   const strategy: BaseStrategy = createStrategy(strategyConfig);
 
   const backtest = new BacktestEngine(strategyConfig, strategy);
-  await backtest.loadHistoricalData(path.resolve(__dirname, '../../data/historical_sol.json'));
+  await backtest.loadHistoricalData(path.resolve(__dirname, '../../data/historical_sol_1m.json'));
 
   const result = await backtest.run();
   saveBacktestResult(result);

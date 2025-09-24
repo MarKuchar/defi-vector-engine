@@ -18,7 +18,6 @@ export class RSI implements Indicator {
   update(value: number): void {
     if (this.prevValue === null) {
       this.prevValue = value;
-      logger.info(`[RSI] Initial value set: ${value}`);
       return;
     }
 
@@ -26,7 +25,6 @@ export class RSI implements Indicator {
     const gain = change > 0 ? change : 0;
     const loss = change < 0 ? -change : 0;
 
-    logger.info(`[RSI] Price: ${value}, Change: ${change.toFixed(6)}, Gain: ${gain.toFixed(6)}, Loss: ${loss.toFixed(6)}`);
 
     if (this.gains.length < this.period) {
       this.gains.push(gain);

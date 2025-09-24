@@ -3,7 +3,7 @@
   "pair": "SOL-PERP",
   "entryRules": {
     "priceAboveMA": {
-      "period": 50,
+      "period": 20,
       "threshold": 1.5
     },
     "rsiConditions": {
@@ -14,7 +14,7 @@
   },
   "risk": {
     "maxPositionSize": 0.1,
-    "stopLoss": 0.05
+    "stopLoss": 0.025
   },
   "circuitBreaker": {
     "maxDailyLoss": -1000,

@@ -27,15 +27,15 @@ export class MeanReversionStrategy implements BaseStrategy {
     this.update(data);
     const { indicators, currentPrice: price } = data;
 
-    const rsi = indicators?.rsi?.value ?? null;
-    const sma = indicators?.SMA_50 ?? null;
-    const emaFast = indicators?.ema?.short ?? null;
-    const emaSlow = indicators?.ema?.long ?? null;
-    const bbUpper = indicators?.bb?.upper ?? null;
-    const bbLower = indicators?.bb?.lower ?? null;
+    const emaFast = indicators?.EMA?.short ?? null;
+    const emaSlow = indicators?.EMA?.long ?? null;
+    const bbUpper = indicators?.BB?.upper ?? null;
+    const bbLower = indicators?.BB?.lower ?? null;
+    const rsi = indicators?.RSI?.value ?? null;
+    const sma = indicators?.SMA?.currentValue ?? null;
 
     if (sma === null || rsi === null) {
-      // logger.warn('Missing SMA or RSI in generateSignal', { sma, rsi });
+      logger.warn('Missing SMA or RSI in generateSignal', { sma, rsi });
       return { direction: null, size: 0, reason: 'Missing indicator data' };
     }
 
